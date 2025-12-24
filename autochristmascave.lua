@@ -2,7 +2,7 @@
 -- 🎄 CHRISTMAS CAVE AUTO EVENT
 -- ========================================
 -- SAFE: Client-side only, no server manipulation
--- LOGIC: Monitor UI notification → Auto teleport → Auto exit
+-- LOGIC: Auto detect event every 2 hours → Auto teleport → Auto exit after 30 min
 -- ========================================
 
 local Players = game:GetService("Players")
@@ -19,8 +19,7 @@ local AutoEvent = {
     SavedCFrame = nil,
     InEvent = false,
     Connections = {},
-    LastCheck = 0,
-    EventReallyActive = false  -- NEW: Track if event is actually open
+    LastCheck = 0
 }
 
 -- ========================================
@@ -32,6 +31,12 @@ local CAVE_CFRAME = CFrame.new(
     -0.0106721297, 0.997256219, 0.0732521564,
     0.997723222, 0.00574125163, 0.0671970546
 )
+
+-- ========================================
+-- ⏰ TIME CONSTANTS
+-- ========================================
+local EVENT_CYCLE = 7200 -- 2 hours in seconds
+local EVENT_DURATION = 1800 -- 30 minutes in seconds
 
 -- ========================================
 -- 🛠️ UTILITY FUNCTIONS
@@ -46,10 +51,29 @@ local function GetRootPart()
     return char and char:FindFirstChild("HumanoidRootPart")
 end
 
--- Check if event is active via multiple methods
+-- Check if event is active based on time cycle
 local function IsEventActive()
-    -- Only return true if we confirmed event opened via [Server] message
-    return AutoEvent.EventReallyActive
+    local currentTime = os.time()
+    local timeInCycle = currentTime % EVENT_CYCLE
+    
+    -- Event active for first 30 minutes of every 2-hour cycle
+    return timeInCycle < EVENT_DURATION
+end
+
+-- Get time until next event starts/ends
+local function GetEventTimeInfo()
+    local currentTime = os.time()
+    local timeInCycle = currentTime % EVENT_CYCLE
+    
+    if timeInCycle < EVENT_DURATION then
+        -- Event is active
+        local timeLeft = EVENT_DURATION - timeInCycle
+        return true, timeLeft
+    else
+        -- Event is inactive
+        local timeUntilNext = EVENT_CYCLE - timeInCycle
+        return false, timeUntilNext
+    end
 end
 
 -- ========================================
@@ -69,16 +93,19 @@ local function EnterEvent()
     print("🎄 [ChristmasCave] Event detected! Entering...")
     
     -- Teleport to cave
-    task.wait(0.5) -- Delay untuk stability
+    task.wait(0.5)
     local char = GetCharacter()
     if char then
         char:PivotTo(CAVE_CFRAME)
         print("✅ [ChristmasCave] Teleported to cave!")
         
+        local _, timeLeft = GetEventTimeInfo()
+        local minutesLeft = math.floor(timeLeft / 60)
+        
         -- Send notification
         StarterGui:SetCore("SendNotification", {
             Title = "🎄 Christmas Cave",
-            Text = "Auto teleported to event!",
+            Text = string.format("Auto teleported! %d min left", minutesLeft),
             Duration = 3
         })
     end
@@ -97,9 +124,12 @@ local function ExitEvent()
             char:PivotTo(AutoEvent.SavedCFrame)
             print("✅ [ChristmasCave] Returned to original position")
             
+            local _, timeUntilNext = GetEventTimeInfo()
+            local minutesUntil = math.floor(timeUntilNext / 60)
+            
             StarterGui:SetCore("SendNotification", {
                 Title = "🎄 Christmas Cave",
-                Text = "Returned to saved location",
+                Text = string.format("Returned! Next event in %d min", minutesUntil),
                 Duration = 3
             })
         end
@@ -122,21 +152,21 @@ local function StartEventMonitor()
                 local eventActive = IsEventActive()
                 
                 if eventActive and not AutoEvent.InEvent then
-                    print("🔔 [ChristmasCave] Event started!")
+                    print("🔔 [ChristmasCave] Event started! (Time-based detection)")
                     EnterEvent()
                 elseif not eventActive and AutoEvent.InEvent then
-                    print("⏰ [ChristmasCave] Event ended detected!")
-                    task.wait(1) -- Wait a bit before teleporting back
+                    print("⏰ [ChristmasCave] Event ended! (30 minutes passed)")
+                    task.wait(1)
                     ExitEvent()
                 end
             end
             
-            task.wait(0.5) -- Check loop delay
+            task.wait(0.5)
         end
     end)
     
     table.insert(AutoEvent.Connections, connection)
-    print("🔍 [ChristmasCave] Monitor started")
+    print("🔍 [ChristmasCave] Time-based monitor started")
 end
 
 local function StartLocationMonitor()
@@ -146,18 +176,12 @@ local function StartLocationMonitor()
         local location = LocalPlayer:GetAttribute("LocationName")
         print("📍 [ChristmasCave] Location changed to:", location)
         
-        -- If we're in event but event is no longer active, exit immediately
-        if AutoEvent.InEvent and not IsEventActive() then
-            print("⏰ [ChristmasCave] Event ended, returning home")
-            task.wait(0.5)
-            ExitEvent()
-        end
-        
-        -- If location changed away from Christmas area
+        -- If location changed away from Christmas area while in event
         if AutoEvent.InEvent and location then
             local locStr = tostring(location):lower()
-            if not string.find(locStr, "christmas") and not string.find(locStr, "natal") then
-                print("⚠️ [ChristmasCave] Kicked from event area")
+            -- If we're no longer in Christmas Cave, exit immediately
+            if not string.find(locStr, "christmas cave") then
+                print("⚠️ [ChristmasCave] Left event area, returning home")
                 ExitEvent()
             end
         end
@@ -174,48 +198,13 @@ local function StartRespawnMonitor()
         task.wait(1.5)
         
         if IsEventActive() then
-            print("♻️ [ChristmasCave] Respawned, re-entering event")
+            print("♻️ [ChristmasCave] Respawned during event, re-entering")
             AutoEvent.InEvent = false
             EnterEvent()
         end
     end)
     
     table.insert(AutoEvent.Connections, connection)
-end
-
--- Monitor for [Server] messages in chat
-local function StartChatMonitor()
-    local success, textChatService = pcall(function()
-        return game:GetService("TextChatService")
-    end)
-    
-    if success and textChatService then
-        local connection = textChatService.MessageReceived:Connect(function(message)
-            if not AutoEvent.Enabled then return end
-            
-            local text = message.Text or ""
-            
-            -- Event OPENED - Detect "[Server]: The Christmas Cave at Christmas Island has opened!"
-            if string.find(text, "[Server]") then
-                if (string.find(text, "Christmas Cave") or string.find(text, "Christmas Island")) and
-                   (string.find(text:lower(), "opened") or 
-                    string.find(text:lower(), "has opened") or
-                    string.find(text:lower(), "is now open")) then
-                    
-                    print("💬 [ChristmasCave] Server: Event OPENED!")
-                    AutoEvent.EventReallyActive = true
-                    
-                    task.wait(1)
-                    if not AutoEvent.InEvent then
-                        EnterEvent()
-                    end
-                end
-            end
-        end)
-        
-        table.insert(AutoEvent.Connections, connection)
-        print("💬 [ChristmasCave] Chat monitor started")
-    end
 end
 
 -- ========================================
@@ -226,7 +215,6 @@ function EnableChristmasCaveAuto()
     if AutoEvent.Enabled then return end
     
     AutoEvent.Enabled = true
-    AutoEvent.EventReallyActive = false  -- Reset event state
     print("🎄 [ChristmasCave] Auto enabled!")
     
     -- Save current position
@@ -240,23 +228,34 @@ function EnableChristmasCaveAuto()
     StartEventMonitor()
     StartLocationMonitor()
     StartRespawnMonitor()
-    StartChatMonitor()
     
-    print("⏳ [ChristmasCave] Waiting for [Server] announcement...")
-    print("📢 [ChristmasCave] Will only teleport after server confirms event is open!")
-    
-    StarterGui:SetCore("SendNotification", {
-        Title = "🎄 Auto Christmas Cave",
-        Text = "Waiting for server announcement...",
-        Duration = 3
-    })
+    -- Check if event is currently active
+    local isActive, timeInfo = GetEventTimeInfo()
+    if isActive then
+        local minutesLeft = math.floor(timeInfo / 60)
+        print(string.format("🎄 [ChristmasCave] Event is currently active! %d minutes left", minutesLeft))
+        StarterGui:SetCore("SendNotification", {
+            Title = "🎄 Auto Christmas Cave",
+            Text = string.format("Event active! %d min left", minutesLeft),
+            Duration = 3
+        })
+        task.wait(1)
+        EnterEvent()
+    else
+        local minutesUntil = math.floor(timeInfo / 60)
+        print(string.format("⏳ [ChristmasCave] Next event in %d minutes", minutesUntil))
+        StarterGui:SetCore("SendNotification", {
+            Title = "🎄 Auto Christmas Cave",
+            Text = string.format("Next event in %d min", minutesUntil),
+            Duration = 3
+        })
+    end
 end
 
 function DisableChristmasCaveAuto()
     if not AutoEvent.Enabled then return end
     
     AutoEvent.Enabled = false
-    AutoEvent.EventReallyActive = false  -- Reset event state
     print("🛑 [ChristmasCave] Auto disabled")
     
     -- Disconnect all connections
