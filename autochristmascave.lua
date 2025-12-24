@@ -293,7 +293,7 @@ function ChristmasCaveModule.Initialize(VyperUI, TargetTab)
         return false
     end
     
-    VyperUI:CreateToggle(TargetTab, {
+    VyperUI:CreateToggle(PlayerTab, {
         Title = "🎄 Auto Christmas Cave",
         Subtitle = "Auto masuk/keluar event • Safe client-side",
         Default = false,
