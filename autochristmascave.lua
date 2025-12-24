@@ -283,31 +283,7 @@ function DisableChristmasCaveAuto()
     })
 end
 
--- ========================================
--- 🎨 VYPERUI INTEGRATION
--- ========================================
-
-function ChristmasCaveModule.Initialize(VyperUI, TargetTab)
-    if not VyperUI or not TargetTab then
-        warn("❌ [ChristmasCave] Missing VyperUI or Tab!")
-        return false
-    end
-    
-    VyperUI:CreateToggle(PlayerTab, {
-        Title = "🎄 Auto Christmas Cave",
-        Subtitle = "Auto masuk/keluar event • Safe client-side",
-        Default = false,
-        Callback = function(state)
-            if state then
-                EnableChristmasCaveAuto()
-            else
-                DisableChristmasCaveAuto()
-            end
-        end
-    })
-    
-    print("✅ [ChristmasCave] Initialized!")
-    return true
-end
-
-return ChristmasCaveModule
+return {
+    Enable = EnableChristmasCaveAuto,
+    Disable = DisableChristmasCaveAuto
+}
