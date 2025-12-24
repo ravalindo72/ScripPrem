@@ -287,30 +287,27 @@ end
 -- 🎨 VYPERUI INTEGRATION
 -- ========================================
 
-VyperUI:CreateToggle(PlayerTab, {
-    Title = "🎄 Auto Christmas Cave",
-    Subtitle = "Auto masuk/keluar event • Safe client-side",
-    Default = false,
-    Callback = function(state)
-        if state then
-            EnableChristmasCaveAuto()
-        else
-            DisableChristmasCaveAuto()
-        end
+function ChristmasCaveModule.Initialize(VyperUI, TargetTab)
+    if not VyperUI or not TargetTab then
+        warn("❌ [ChristmasCave] Missing VyperUI or Tab!")
+        return false
     end
-})
+    
+    VyperUI:CreateToggle(TargetTab, {
+        Title = "🎄 Auto Christmas Cave",
+        Subtitle = "Auto masuk/keluar event • Safe client-side",
+        Default = false,
+        Callback = function(state)
+            if state then
+                EnableChristmasCaveAuto()
+            else
+                DisableChristmasCaveAuto()
+            end
+        end
+    })
+    
+    print("✅ [ChristmasCave] Initialized!")
+    return true
+end
 
--- ========================================
--- 🧹 CLEANUP
--- ========================================
-
-game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
-    DisableChristmasCaveAuto()
-end)
-
-print("✅ [ChristmasCave] Script loaded successfully!")
-print("📝 [ChristmasCave] Will detect event from:")
-print("   • UI notifications")
-print("   • [Server] chat messages")
-print("   • LocationName attribute")
-print("   • Santa's Gift Factory UI")
+return ChristmasCaveModule
