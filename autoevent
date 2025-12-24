@@ -1,0 +1,216 @@
+-- ========================================
+-- 🎄 CHRISTMAS CAVE AUTO MODULE (FIXED)
+-- ========================================
+
+local Services = _G.Services
+local PlayerTab = _G.Tabs.PlayerTab
+
+-- ========================================
+-- 📦 MODULE STATE
+-- ========================================
+local ChristmasCave = {
+    Enabled = false,
+    SavedCFrame = nil,
+    InEvent = false,
+    Connections = {}
+}
+
+-- ========================================
+-- 📍 CONFIGURATION
+-- ========================================
+local CONFIG = {
+    CavePosition = Vector3.new(535.279724121093750, -580.581359863281250, 8900.060546875000000),
+    CheckInterval = 5,
+    TeleportDelay = 0.1,
+    RespawnDelay = 1
+}
+
+-- ========================================
+-- 🛠️ UTILITY FUNCTIONS
+-- ========================================
+
+local function GetCharacter()
+    return Services.LocalPlayer.Character
+end
+
+local function GetRootPart()
+    local char = GetCharacter()
+    return char and char:FindFirstChild("HumanoidRootPart")
+end
+
+local function IsEventActive()
+    local success, result = pcall(function()
+        local replion = Services.ReplicatedStorage:FindFirstChild("Replion")
+        if not replion then return false end
+        
+        for _, child in pairs(replion:GetChildren()) do
+            if child.Name == "ArrayUpdate" then
+                local populated = child:FindFirstChild("Populated")
+                if populated then
+                    for _, event in pairs(populated:GetChildren()) do
+                        if event.Name == "Christmas Cave" or event.Value == "Christmas Cave" then
+                            return true
+                        end
+                    end
+                end
+            end
+        end
+        return false
+    end)
+    
+    return success and result
+end
+
+-- ========================================
+-- 🚀 CORE FUNCTIONS
+-- ========================================
+
+local function EnterEvent()
+    if ChristmasCave.InEvent then return end
+    
+    local root = GetRootPart()
+    if not root then return end
+    
+    ChristmasCave.InEvent = true
+    print("🎄 Entering Christmas Cave...")
+    
+    task.wait(CONFIG.TeleportDelay)
+    local char = GetCharacter()
+    if char then
+        char:PivotTo(CFrame.new(CONFIG.CavePosition))
+        print("✅ Teleported to cave")
+    end
+end
+
+local function ExitEvent()
+    if not ChristmasCave.InEvent then return end
+    
+    ChristmasCave.InEvent = false
+    print("🚪 Exiting Christmas Cave...")
+    
+    if ChristmasCave.SavedCFrame then
+        local char = GetCharacter()
+        if char then
+            task.wait(CONFIG.TeleportDelay)
+            char:PivotTo(ChristmasCave.SavedCFrame)
+            print("✅ Returned to saved position")
+        end
+    end
+end
+
+-- ========================================
+-- 🔄 MONITORING
+-- ========================================
+
+local function StartMonitoring()
+    -- Replion monitor
+    local replionTask = task.spawn(function()
+        while ChristmasCave.Enabled do
+            local eventActive = IsEventActive()
+            
+            if eventActive and not ChristmasCave.InEvent then
+                EnterEvent()
+            elseif not eventActive and ChristmasCave.InEvent then
+                ExitEvent()
+            end
+            
+            task.wait(CONFIG.CheckInterval)
+        end
+    end)
+    table.insert(ChristmasCave.Connections, replionTask)
+    
+    -- Location monitor
+    local locationConn = Services.LocalPlayer:GetAttributeChangedSignal("LocationName"):Connect(function()
+        if not ChristmasCave.Enabled then return end
+        
+        local location = Services.LocalPlayer:GetAttribute("LocationName")
+        if ChristmasCave.InEvent and location ~= "Christmas Cave" then
+            ExitEvent()
+        end
+    end)
+    table.insert(ChristmasCave.Connections, locationConn)
+    
+    -- Respawn monitor
+    local respawnConn = Services.LocalPlayer.CharacterAdded:Connect(function(char)
+        if not ChristmasCave.Enabled then return end
+        
+        char:WaitForChild("HumanoidRootPart", 10)
+        task.wait(CONFIG.RespawnDelay)
+        
+        if IsEventActive() then
+            ChristmasCave.InEvent = false
+            EnterEvent()
+        end
+    end)
+    table.insert(ChristmasCave.Connections, respawnConn)
+end
+
+local function StopMonitoring()
+    for _, conn in pairs(ChristmasCave.Connections) do
+        if typeof(conn) == "RBXScriptConnection" then
+            conn:Disconnect()
+        else
+            task.cancel(conn)
+        end
+    end
+    ChristmasCave.Connections = {}
+end
+
+-- ========================================
+-- 🎮 PUBLIC API
+-- ========================================
+
+function ChristmasCave.Enable()
+    if ChristmasCave.Enabled then return end
+    
+    ChristmasCave.Enabled = true
+    
+    local root = GetRootPart()
+    if root then
+        ChristmasCave.SavedCFrame = GetCharacter():GetPivot()
+    end
+    
+    StartMonitoring()
+    
+    if IsEventActive() then
+        EnterEvent()
+    end
+end
+
+function ChristmasCave.Disable()
+    if not ChristmasCave.Enabled then return end
+    
+    ChristmasCave.Enabled = false
+    StopMonitoring()
+    
+    if ChristmasCave.InEvent then
+        ExitEvent()
+    end
+    
+    ChristmasCave.SavedCFrame = nil
+end
+
+-- ========================================
+-- 🎨 UI INTEGRATION (BEFORE RETURN!)
+-- ========================================
+
+VyperUI:CreateToggle(PlayerTab, {
+    Title = "🎄 Auto Christmas Cave",
+    Subtitle = "Auto masuk/keluar event • Safe client-side",
+    Default = false,
+    Callback = function(state)
+        if state then
+            ChristmasCave.Enable()
+        else
+            ChristmasCave.Disable()
+        end
+    end
+})
+
+print("✅ [ChristmasCave] UI Toggle created")
+
+-- ========================================
+-- 🔙 RETURN MODULE (AT THE END!)
+-- ========================================
+
+return ChristmasCave
