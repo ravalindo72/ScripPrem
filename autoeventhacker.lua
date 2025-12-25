@@ -1,34 +1,41 @@
 -- ========================================
--- 🧑‍💻 HACKER EVENT AUTO TELEPORT
--- ========================================
--- SAFE: Client-side only
--- LOGIC: Scan Workspace.Hacker Event setiap 15 detik
--- ACTION: Jika lokasi berubah → Auto Teleport
+-- 🧑‍💻 HACKER EVENT SEEK & LOCK (STREAM SAFE)
 -- ========================================
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
 -- ========================================
+-- 📍 EVENT SPAWN POINTS
+-- ========================================
+local SEARCH_POINTS = {
+    CFrame.new(-1741.52502, 5.2249999, 1453.5),
+    CFrame.new(-326.524994, 5.2249999, 2385.30005),
+    CFrame.new(1141.67505, 5.2249999, 3230.5)
+}
+
+-- ========================================
 -- 📦 STATE
 -- ========================================
 local HackerEvent = {
     Enabled = false,
+    Locked = false,
     LastCFrame = nil,
-    Connections = {}
+    Thread = nil
 }
 
 -- ========================================
--- 🛠️ UTILITIES
+-- 🛠️ UTIL
 -- ========================================
-
-local function GetCharacter()
+local function GetChar()
     return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 end
 
-local function GetRoot()
-    local char = GetCharacter()
-    return char:WaitForChild("HumanoidRootPart")
+local function Teleport(cf)
+    local char = GetChar()
+    if char then
+        char:PivotTo(cf * CFrame.new(0, 3, 0))
+    end
 end
 
 local function GetHackerEventPart()
@@ -42,78 +49,79 @@ local function GetHackerEventPart()
     end
 end
 
-local function TeleportTo(cf)
-    local char = GetCharacter()
-    if char then
-        char:PivotTo(cf * CFrame.new(0, 3, 0))
-    end
-end
-
 -- ========================================
--- 🔄 MONITOR (15s SCAN)
+-- 🔄 MAIN LOOP (15s)
 -- ========================================
+local function StartLoop()
+    HackerEvent.Thread = task.spawn(function()
+        local index = 1
 
-local function StartMonitor()
-    local thread = task.spawn(function()
         while HackerEvent.Enabled do
             local eventPart = GetHackerEventPart()
 
             if eventPart then
-                local currentCF = eventPart.CFrame
+                local cf = eventPart.CFrame
 
-                if not HackerEvent.LastCFrame then
-                    -- First detection
-                    HackerEvent.LastCFrame = currentCF
-                    print("🧑‍💻 [HackerEvent] Initial position detected")
-                    TeleportTo(currentCF)
+                if not HackerEvent.Locked then
+                    HackerEvent.Locked = true
+                    HackerEvent.LastCFrame = cf
+                    print("🔒 [HackerEvent] FOUND & LOCKED")
+                    Teleport(cf)
 
-                elseif (currentCF.Position - HackerEvent.LastCFrame.Position).Magnitude > 1 then
-                    -- Location changed
-                    HackerEvent.LastCFrame = currentCF
-                    print("🚀 [HackerEvent] Location changed → Teleporting")
-                    TeleportTo(currentCF)
+                elseif (cf.Position - HackerEvent.LastCFrame.Position).Magnitude > 1 then
+                    print("🔄 [HackerEvent] Event moved → re-seeking")
+                    HackerEvent.Locked = false
+                    HackerEvent.LastCFrame = nil
+                    index = 1
                 end
             else
-                warn("⚠️ [HackerEvent] Workspace.Hacker Event not found")
+                -- Event not loaded → seek via teleport
+                HackerEvent.Locked = false
+                local targetCF = SEARCH_POINTS[index]
+                print("🔍 [HackerEvent] Seeking event at point", index)
+                Teleport(targetCF)
+
+                index += 1
+                if index > #SEARCH_POINTS then
+                    index = 1
+                end
             end
 
-            task.wait(15) -- ⏰ FIXED 15 SECONDS
+            task.wait(15) -- ⏰ FIXED INTERVAL
         end
     end)
-
-    table.insert(HackerEvent.Connections, thread)
 end
 
 -- ========================================
 -- 🎮 ENABLE / DISABLE
 -- ========================================
-
 local function Enable()
     if HackerEvent.Enabled then return end
     HackerEvent.Enabled = true
+    HackerEvent.Locked = false
     HackerEvent.LastCFrame = nil
 
-    print("🟢 [HackerEvent] Auto Teleport ENABLED")
-    StartMonitor()
+    print("🟢 [HackerEvent] Auto Seek ENABLED")
+    StartLoop()
 end
 
 local function Disable()
     if not HackerEvent.Enabled then return end
     HackerEvent.Enabled = false
 
-    for _, c in pairs(HackerEvent.Connections) do
-        task.cancel(c)
+    if HackerEvent.Thread then
+        task.cancel(HackerEvent.Thread)
+        HackerEvent.Thread = nil
     end
-    HackerEvent.Connections = {}
-    HackerEvent.LastCFrame = nil
 
-    print("🔴 [HackerEvent] Auto Teleport DISABLED")
+    HackerEvent.Locked = false
+    HackerEvent.LastCFrame = nil
+    print("🔴 [HackerEvent] Auto Seek DISABLED")
 end
 
 -- ========================================
--- 📤 EXPORT (FOR UI TOGGLE)
+-- 📤 EXPORT
 -- ========================================
-
 return {
     Enable = Enable,
     Disable = Disable
