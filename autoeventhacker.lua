@@ -1,8 +1,8 @@
 -- ========================================
--- 🧑‍💻 HACKER EVENT SEEK & LOCK (STREAM SAFE)
+-- 🧑‍💻 HACKER EVENT SEEK & LOCK (OPTIMIZED)
 -- ========================================
-
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
 -- ========================================
@@ -15,107 +15,159 @@ local SEARCH_POINTS = {
 }
 
 -- ========================================
--- 📦 STATE
+-- ⚙️ SETTINGS
 -- ========================================
-local HackerEvent = {
-    Enabled = false,
-    Locked = false,
-    LastCFrame = nil,
-    Thread = nil
+local SETTINGS = {
+    SEEK_INTERVAL = 15,      -- Interval cycling kalau belum nemu
+    CHECK_INTERVAL = 2,      -- Interval ngecek kalau udah lock
+    TELEPORT_OFFSET = 3      -- Offset Y pas teleport
 }
 
 -- ========================================
--- 🛠️ UTIL
+-- 📦 STATE
 -- ========================================
-local function GetChar()
+local State = {
+    Enabled = false,
+    IsLocked = false,
+    CurrentPointIndex = 1,
+    MainThread = nil,
+    LastEventCheck = 0
+}
+
+-- ========================================
+-- 🛠️ UTILITIES
+-- ========================================
+local function GetCharacter()
     return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 end
 
-local function Teleport(cf)
-    local char = GetChar()
-    if char then
-        char:PivotTo(cf * CFrame.new(0, 3, 0))
+local function SafeTeleport(cf)
+    local char = GetCharacter()
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        hrp.CFrame = cf * CFrame.new(0, SETTINGS.TELEPORT_OFFSET, 0)
+        return true
     end
+    return false
 end
 
-local function GetHackerEventPart()
-    local obj = workspace:FindFirstChild("Hacker Event", true)
-    if not obj then return nil end
-
-    if obj:IsA("BasePart") then
-        return obj
-    elseif obj:IsA("Model") then
-        return obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
-    end
-end
-
--- ========================================
--- 🔄 MAIN LOOP (15s)
--- ========================================
-local function StartLoop()
-    HackerEvent.Thread = task.spawn(function()
-        local index = 1
-
-        while HackerEvent.Enabled do
-            local eventPart = GetHackerEventPart()
-
-            if eventPart then
-                local cf = eventPart.CFrame
-
-                if not HackerEvent.Locked then
-                    HackerEvent.Locked = true
-                    HackerEvent.LastCFrame = cf
-                    print("🔒 [HackerEvent] FOUND & LOCKED")
-                    Teleport(cf)
-
-                elseif (cf.Position - HackerEvent.LastCFrame.Position).Magnitude > 1 then
-                    print("🔄 [HackerEvent] Event moved → re-seeking")
-                    HackerEvent.Locked = false
-                    HackerEvent.LastCFrame = nil
-                    index = 1
-                end
-            else
-                -- Event not loaded → seek via teleport
-                HackerEvent.Locked = false
-                local targetCF = SEARCH_POINTS[index]
-                print("🔍 [HackerEvent] Seeking event at point", index)
-                Teleport(targetCF)
-
-                index += 1
-                if index > #SEARCH_POINTS then
-                    index = 1
-                end
+local function FindHackerEvent()
+    -- Cek di Locations dulu (lebih spesifik)
+    local locations = workspace:FindFirstChild("Locations")
+    if locations then
+        local event = locations:FindFirstChild("Hacker Event")
+        if event then
+            if event:IsA("BasePart") then
+                return event
+            elseif event:IsA("Model") then
+                return event.PrimaryPart or event:FindFirstChildWhichIsA("BasePart")
             end
+        end
+    end
+    
+    -- Fallback: cek di workspace
+    local event = workspace:FindFirstChild("Hacker Event", true)
+    if event then
+        if event:IsA("BasePart") then
+            return event
+        elseif event:IsA("Model") then
+            return event.PrimaryPart or event:FindFirstChildWhichIsA("BasePart")
+        end
+    end
+    
+    return nil
+end
 
-            task.wait(15) -- ⏰ FIXED INTERVAL
+-- ========================================
+-- 🔍 SEEKING MODE
+-- ========================================
+local function SeekEvent()
+    local targetCF = SEARCH_POINTS[State.CurrentPointIndex]
+    print(string.format("🔍 [HackerEvent] Seeking point %d/%d", State.CurrentPointIndex, #SEARCH_POINTS))
+    
+    SafeTeleport(targetCF)
+    
+    -- Next point
+    State.CurrentPointIndex = State.CurrentPointIndex + 1
+    if State.CurrentPointIndex > #SEARCH_POINTS then
+        State.CurrentPointIndex = 1
+    end
+end
+
+-- ========================================
+-- 🔒 LOCKED MODE
+-- ========================================
+local function StayAtEvent(eventPart)
+    local cf = eventPart.CFrame
+    SafeTeleport(cf)
+end
+
+-- ========================================
+-- 🔄 MAIN LOOP
+-- ========================================
+local function MainLoop()
+    State.MainThread = task.spawn(function()
+        while State.Enabled do
+            local eventPart = FindHackerEvent()
+            
+            if eventPart then
+                -- Event ditemukan!
+                if not State.IsLocked then
+                    State.IsLocked = true
+                    print("🔒 [HackerEvent] Event FOUND & LOCKED!")
+                end
+                
+                StayAtEvent(eventPart)
+                task.wait(SETTINGS.CHECK_INTERVAL) -- Check lebih sering kalau udah lock
+                
+            else
+                -- Event hilang atau belum ketemu
+                if State.IsLocked then
+                    print("🔄 [HackerEvent] Event LOST - Re-seeking...")
+                    State.IsLocked = false
+                    State.CurrentPointIndex = 1 -- Reset ke point pertama
+                end
+                
+                SeekEvent()
+                task.wait(SETTINGS.SEEK_INTERVAL) -- Wait lebih lama kalau masih seeking
+            end
         end
     end)
 end
 
 -- ========================================
--- 🎮 ENABLE / DISABLE
+-- 🎮 PUBLIC API
 -- ========================================
 local function Enable()
-    if HackerEvent.Enabled then return end
-    HackerEvent.Enabled = true
-    HackerEvent.Locked = false
-    HackerEvent.LastCFrame = nil
-
+    if State.Enabled then 
+        warn("⚠️ [HackerEvent] Already enabled!")
+        return 
+    end
+    
+    State.Enabled = true
+    State.IsLocked = false
+    State.CurrentPointIndex = 1
+    
     print("🟢 [HackerEvent] Auto Seek ENABLED")
-    StartLoop()
+    MainLoop()
 end
 
 local function Disable()
-    if not HackerEvent.Enabled then return end
-    HackerEvent.Enabled = false
-
-    if HackerEvent.Thread then
-        task.cancel(HackerEvent.Thread)
-        HackerEvent.Thread = nil
+    if not State.Enabled then 
+        warn("⚠️ [HackerEvent] Already disabled!")
+        return 
     end
-
-    HackerEvent.Locked = false
-    HackerEvent.LastCFrame = nil
+    
+    State.Enabled = false
+    
+    if State.MainThread then
+        task.cancel(State.MainThread)
+        State.MainThread = nil
+    end
+    
+    State.IsLocked = false
+    State.CurrentPointIndex = 1
+    
     print("🔴 [HackerEvent] Auto Seek DISABLED")
 end
 
@@ -124,5 +176,22 @@ end
 -- ========================================
 return {
     Enable = Enable,
-    Disable = Disable
+    Disable = Disable,
+    
+    -- Optional: buat debugging atau custom config
+    GetState = function()
+        return {
+            Enabled = State.Enabled,
+            IsLocked = State.IsLocked,
+            CurrentPoint = State.CurrentPointIndex
+        }
+    end,
+    
+    SetSettings = function(newSettings)
+        for k, v in pairs(newSettings) do
+            if SETTINGS[k] then
+                SETTINGS[k] = v
+            end
+        end
+    end
 }
