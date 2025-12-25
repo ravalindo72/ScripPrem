@@ -79,7 +79,6 @@ local function MainLoop()
                 -- Cek apakah posisi berubah ATAU ini pertama kali ketemu
                 if not State.LastPosition or (currentPos - State.LastPosition).Magnitude > 5 then
                     State.LastPosition = currentPos
-                    print("🔒 [HackerEvent] Black Hole detected at:", currentPos)
                     SafeTeleport(currentPos)
                 end
                 
@@ -108,7 +107,6 @@ local function Enable()
     State.Enabled = true
     State.LastPosition = nil
     
-    print("🟢 [HackerEvent] Auto Teleport ENABLED")
     MainLoop()
 end
 
@@ -127,7 +125,7 @@ local function Disable()
     
     State.LastPosition = nil
     
-    print("🔴 [HackerEvent] Auto Teleport DISABLED")
+
 end
 
 -- ========================================
