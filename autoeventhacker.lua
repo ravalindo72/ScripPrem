@@ -1,26 +1,15 @@
 -- ========================================
--- 🧑‍💻 HACKER EVENT SEEK & LOCK (OPTIMIZED)
+-- 🧑‍💻 HACKER EVENT AUTO TELEPORT (FIXED PATH)
 -- ========================================
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
-
--- ========================================
--- 📍 EVENT SPAWN POINTS
--- ========================================
-local SEARCH_POINTS = {
-    CFrame.new(-1741.52502, 5.2249999, 1453.5),
-    CFrame.new(-326.524994, 5.2249999, 2385.30005),
-    CFrame.new(1141.67505, 5.2249999, 3230.5)
-}
 
 -- ========================================
 -- ⚙️ SETTINGS
 -- ========================================
 local SETTINGS = {
-    SEEK_INTERVAL = 15,      -- Interval cycling kalau belum nemu
-    CHECK_INTERVAL = 2,      -- Interval ngecek kalau udah lock
-    TELEPORT_OFFSET = 3      -- Offset Y pas teleport
+    CHECK_INTERVAL = 2,      -- Interval ngecek posisi Black Hole
+    TELEPORT_OFFSET = 5      -- Offset Y pas teleport (biar ga kejebak)
 }
 
 -- ========================================
@@ -28,10 +17,8 @@ local SETTINGS = {
 -- ========================================
 local State = {
     Enabled = false,
-    IsLocked = false,
-    CurrentPointIndex = 1,
     MainThread = nil,
-    LastEventCheck = 0
+    LastPosition = nil       -- Nyimpen posisi terakhir buat detect perubahan
 }
 
 -- ========================================
@@ -41,65 +28,41 @@ local function GetCharacter()
     return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 end
 
-local function SafeTeleport(cf)
+local function SafeTeleport(position)
     local char = GetCharacter()
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if hrp then
-        hrp.CFrame = cf * CFrame.new(0, SETTINGS.TELEPORT_OFFSET, 0)
+        hrp.CFrame = CFrame.new(position + Vector3.new(0, SETTINGS.TELEPORT_OFFSET, 0))
         return true
     end
     return false
 end
 
-local function FindHackerEvent()
-    -- Cek di Locations dulu (lebih spesifik)
-    local locations = workspace:FindFirstChild("Locations")
-    if locations then
-        local event = locations:FindFirstChild("Hacker Event")
-        if event then
-            if event:IsA("BasePart") then
-                return event
-            elseif event:IsA("Model") then
-                return event.PrimaryPart or event:FindFirstChildWhichIsA("BasePart")
-            end
-        end
+local function FindBlackHole()
+    -- Cari Props folder dulu
+    local props = workspace:FindFirstChild("Props")
+    if not props then
+        return nil
     end
     
-    -- Fallback: cek di workspace
-    local event = workspace:FindFirstChild("Hacker Event", true)
-    if event then
-        if event:IsA("BasePart") then
-            return event
-        elseif event:IsA("Model") then
-            return event.PrimaryPart or event:FindFirstChildWhichIsA("BasePart")
-        end
+    -- Cari Black Hole di dalem Props
+    local blackHole = props:FindFirstChild("Black Hole")
+    if not blackHole then
+        return nil
+    end
+    
+    -- Kalau Black Hole adalah BasePart
+    if blackHole:IsA("BasePart") then
+        return blackHole
+    end
+    
+    -- Kalau Black Hole adalah Model/Folder
+    if blackHole:IsA("Model") or blackHole:IsA("Folder") then
+        -- Cari PrimaryPart atau BasePart pertama
+        return blackHole.PrimaryPart or blackHole:FindFirstChildWhichIsA("BasePart", true)
     end
     
     return nil
-end
-
--- ========================================
--- 🔍 SEEKING MODE
--- ========================================
-local function SeekEvent()
-    local targetCF = SEARCH_POINTS[State.CurrentPointIndex]
-    print(string.format("🔍 [HackerEvent] Seeking point %d/%d", State.CurrentPointIndex, #SEARCH_POINTS))
-    
-    SafeTeleport(targetCF)
-    
-    -- Next point
-    State.CurrentPointIndex = State.CurrentPointIndex + 1
-    if State.CurrentPointIndex > #SEARCH_POINTS then
-        State.CurrentPointIndex = 1
-    end
-end
-
--- ========================================
--- 🔒 LOCKED MODE
--- ========================================
-local function StayAtEvent(eventPart)
-    local cf = eventPart.CFrame
-    SafeTeleport(cf)
 end
 
 -- ========================================
@@ -108,29 +71,27 @@ end
 local function MainLoop()
     State.MainThread = task.spawn(function()
         while State.Enabled do
-            local eventPart = FindHackerEvent()
+            local blackHolePart = FindBlackHole()
             
-            if eventPart then
-                -- Event ditemukan!
-                if not State.IsLocked then
-                    State.IsLocked = true
-                    print("🔒 [HackerEvent] Event FOUND & LOCKED!")
-                end
+            if blackHolePart then
+                local currentPos = blackHolePart.Position
                 
-                StayAtEvent(eventPart)
-                task.wait(SETTINGS.CHECK_INTERVAL) -- Check lebih sering kalau udah lock
+                -- Cek apakah posisi berubah ATAU ini pertama kali ketemu
+                if not State.LastPosition or (currentPos - State.LastPosition).Magnitude > 5 then
+                    State.LastPosition = currentPos
+                    print("🔒 [HackerEvent] Black Hole detected at:", currentPos)
+                    SafeTeleport(currentPos)
+                end
                 
             else
-                -- Event hilang atau belum ketemu
-                if State.IsLocked then
-                    print("🔄 [HackerEvent] Event LOST - Re-seeking...")
-                    State.IsLocked = false
-                    State.CurrentPointIndex = 1 -- Reset ke point pertama
+                -- Black Hole ga ketemu
+                if State.LastPosition then
+                    warn("⚠️ [HackerEvent] Black Hole disappeared!")
+                    State.LastPosition = nil
                 end
-                
-                SeekEvent()
-                task.wait(SETTINGS.SEEK_INTERVAL) -- Wait lebih lama kalau masih seeking
             end
+            
+            task.wait(SETTINGS.CHECK_INTERVAL)
         end
     end)
 end
@@ -145,10 +106,9 @@ local function Enable()
     end
     
     State.Enabled = true
-    State.IsLocked = false
-    State.CurrentPointIndex = 1
+    State.LastPosition = nil
     
-    print("🟢 [HackerEvent] Auto Seek ENABLED")
+    print("🟢 [HackerEvent] Auto Teleport ENABLED")
     MainLoop()
 end
 
@@ -165,10 +125,9 @@ local function Disable()
         State.MainThread = nil
     end
     
-    State.IsLocked = false
-    State.CurrentPointIndex = 1
+    State.LastPosition = nil
     
-    print("🔴 [HackerEvent] Auto Seek DISABLED")
+    print("🔴 [HackerEvent] Auto Teleport DISABLED")
 end
 
 -- ========================================
@@ -178,12 +137,11 @@ return {
     Enable = Enable,
     Disable = Disable,
     
-    -- Optional: buat debugging atau custom config
+    -- Optional: buat debugging
     GetState = function()
         return {
             Enabled = State.Enabled,
-            IsLocked = State.IsLocked,
-            CurrentPoint = State.CurrentPointIndex
+            LastPosition = State.LastPosition
         }
     end,
     
