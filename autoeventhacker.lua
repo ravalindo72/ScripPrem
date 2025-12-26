@@ -85,7 +85,6 @@ local function MainLoop()
             else
                 -- Black Hole ga ketemu
                 if State.LastPosition then
-                    warn("⚠️ [HackerEvent] Black Hole disappeared!")
                     State.LastPosition = nil
                 end
             end
@@ -100,7 +99,6 @@ end
 -- ========================================
 local function Enable()
     if State.Enabled then 
-        warn("⚠️ [HackerEvent] Already enabled!")
         return 
     end
     
@@ -112,7 +110,6 @@ end
 
 local function Disable()
     if not State.Enabled then 
-        warn("⚠️ [HackerEvent] Already disabled!")
         return 
     end
     
@@ -124,8 +121,6 @@ local function Disable()
     end
     
     State.LastPosition = nil
-    
-
 end
 
 -- ========================================
