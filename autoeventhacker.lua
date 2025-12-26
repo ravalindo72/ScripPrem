@@ -1,5 +1,5 @@
 -- ========================================
--- 🧑‍💻 HACKER EVENT SEEK & LOCK (OPTIMIZED)
+-- 🧑‍💻 HACKER EVENT SEEK & LOCK (CLEAN V3)
 -- ========================================
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -18,9 +18,10 @@ local SEARCH_POINTS = {
 -- ⚙️ SETTINGS
 -- ========================================
 local SETTINGS = {
-    SEEK_INTERVAL = 15,      -- Interval cycling kalau belum nemu
-    CHECK_INTERVAL = 2,      -- Interval ngecek kalau udah lock
-    TELEPORT_OFFSET = 3      -- Offset Y pas teleport
+    SEEK_INTERVAL = 15,           -- Interval cycling kalau belum nemu
+    FOLDER_CHECK_INTERVAL = 0.5,  -- Interval ngecek folder (cepet biar responsive)
+    TELEPORT_OFFSET = 3,          -- Offset Y pas teleport
+    RANDOM_OFFSET_RANGE = 15      -- Range random offset biar ga nabrak orang
 }
 
 -- ========================================
@@ -28,10 +29,10 @@ local SETTINGS = {
 -- ========================================
 local State = {
     Enabled = false,
-    IsLocked = false,
+    IsAtEvent = false,
     CurrentPointIndex = 1,
     MainThread = nil,
-    LastEventCheck = 0
+    MonitorThread = nil
 }
 
 -- ========================================
@@ -41,38 +42,39 @@ local function GetCharacter()
     return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 end
 
+local function GetRandomOffset()
+    local range = SETTINGS.RANDOM_OFFSET_RANGE
+    return CFrame.new(
+        math.random(-range, range),
+        0,
+        math.random(-range, range)
+    )
+end
+
 local function SafeTeleport(cf)
     local char = GetCharacter()
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if hrp then
-        hrp.CFrame = cf * CFrame.new(0, SETTINGS.TELEPORT_OFFSET, 0)
+        local offsetCF = cf * GetRandomOffset() * CFrame.new(0, SETTINGS.TELEPORT_OFFSET, 0)
+        hrp.CFrame = offsetCF
         return true
     end
     return false
 end
 
-local function FindHackerEvent()
-    -- Cek di Locations dulu (lebih spesifik)
+local function FindHackerEventInFolder()
+    -- CUMA ngecek di folder Locations (ga teleport)
     local locations = workspace:FindFirstChild("Locations")
-    if locations then
-        local event = locations:FindFirstChild("Hacker Event")
-        if event then
-            if event:IsA("BasePart") then
-                return event
-            elseif event:IsA("Model") then
-                return event.PrimaryPart or event:FindFirstChildWhichIsA("BasePart")
-            end
-        end
-    end
+    if not locations then return nil end
     
-    -- Fallback: cek di workspace
-    local event = workspace:FindFirstChild("Hacker Event", true)
-    if event then
-        if event:IsA("BasePart") then
-            return event
-        elseif event:IsA("Model") then
-            return event.PrimaryPart or event:FindFirstChildWhichIsA("BasePart")
-        end
+    local event = locations:FindFirstChild("Hacker Event")
+    if not event then return nil end
+    
+    -- Return part-nya kalau ketemu
+    if event:IsA("BasePart") then
+        return event
+    elseif event:IsA("Model") then
+        return event.PrimaryPart or event:FindFirstChildWhichIsA("BasePart")
     end
     
     return nil
@@ -95,41 +97,51 @@ local function SeekEvent()
 end
 
 -- ========================================
--- 🔒 LOCKED MODE
+-- 👀 FOLDER MONITOR (Background)
 -- ========================================
-local function StayAtEvent(eventPart)
-    local cf = eventPart.CFrame
-    SafeTeleport(cf)
+local function StartFolderMonitor()
+    State.MonitorThread = task.spawn(function()
+        while State.Enabled do
+            local eventPart = FindHackerEventInFolder()
+            
+            if eventPart then
+                -- Event ada di folder!
+                if not State.IsAtEvent then
+                    State.IsAtEvent = true
+                    print("🔒 [HackerEvent] Event DETECTED in folder!")
+                    
+                    -- Teleport SEKALI aja pas pertama detect
+                    SafeTeleport(eventPart.CFrame)
+                end
+                -- Kalau udah di event, CUMA monitor aja, ga teleport lagi
+                
+            else
+                -- Event hilang dari folder!
+                if State.IsAtEvent then
+                    print("❌ [HackerEvent] Event DISAPPEARED from folder!")
+                    State.IsAtEvent = false
+                    -- Balik ke seeking mode
+                end
+            end
+            
+            task.wait(SETTINGS.FOLDER_CHECK_INTERVAL)
+        end
+    end)
 end
 
 -- ========================================
--- 🔄 MAIN LOOP
+-- 🔄 MAIN LOOP (Seeking Only)
 -- ========================================
 local function MainLoop()
     State.MainThread = task.spawn(function()
         while State.Enabled do
-            local eventPart = FindHackerEvent()
-            
-            if eventPart then
-                -- Event ditemukan!
-                if not State.IsLocked then
-                    State.IsLocked = true
-                    print("🔒 [HackerEvent] Event FOUND & LOCKED!")
-                end
-                
-                StayAtEvent(eventPart)
-                task.wait(SETTINGS.CHECK_INTERVAL) -- Check lebih sering kalau udah lock
-                
-            else
-                -- Event hilang atau belum ketemu
-                if State.IsLocked then
-                    print("🔄 [HackerEvent] Event LOST - Re-seeking...")
-                    State.IsLocked = false
-                    State.CurrentPointIndex = 1 -- Reset ke point pertama
-                end
-                
+            -- Kalau belum di event, terus seeking
+            if not State.IsAtEvent then
                 SeekEvent()
-                task.wait(SETTINGS.SEEK_INTERVAL) -- Wait lebih lama kalau masih seeking
+                task.wait(SETTINGS.SEEK_INTERVAL)
+            else
+                -- Kalau udah di event, cuma idle aja (monitor jalan di background)
+                task.wait(1)
             end
         end
     end)
@@ -145,11 +157,14 @@ local function Enable()
     end
     
     State.Enabled = true
-    State.IsLocked = false
+    State.IsAtEvent = false
     State.CurrentPointIndex = 1
     
     print("🟢 [HackerEvent] Auto Seek ENABLED")
-    MainLoop()
+    
+    -- Start both threads
+    StartFolderMonitor()  -- Background monitor
+    MainLoop()            -- Seeking loop
 end
 
 local function Disable()
@@ -160,12 +175,18 @@ local function Disable()
     
     State.Enabled = false
     
+    -- Cancel both threads
     if State.MainThread then
         task.cancel(State.MainThread)
         State.MainThread = nil
     end
     
-    State.IsLocked = false
+    if State.MonitorThread then
+        task.cancel(State.MonitorThread)
+        State.MonitorThread = nil
+    end
+    
+    State.IsAtEvent = false
     State.CurrentPointIndex = 1
     
     print("🔴 [HackerEvent] Auto Seek DISABLED")
@@ -178,11 +199,11 @@ return {
     Enable = Enable,
     Disable = Disable,
     
-    -- Optional: buat debugging atau custom config
+    -- Optional: buat debugging
     GetState = function()
         return {
             Enabled = State.Enabled,
-            IsLocked = State.IsLocked,
+            IsAtEvent = State.IsAtEvent,
             CurrentPoint = State.CurrentPointIndex
         }
     end,
@@ -191,6 +212,7 @@ return {
         for k, v in pairs(newSettings) do
             if SETTINGS[k] then
                 SETTINGS[k] = v
+                print(string.format("⚙️ [HackerEvent] Setting %s = %s", k, tostring(v)))
             end
         end
     end
