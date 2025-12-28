@@ -1,38 +1,97 @@
 -- ========================================
--- 🔥 FPS BOOST EXTREME (MAKSIMAL PERFORMA)
+-- 🔥 FPS BOOST OPTIMIZED (SMOOTH & SAFE)
+-- ========================================
+-- NO LOOPS - Cuma jalan 1x pas enable
+-- NO DESTROY - Cuma disable/hide untuk bisa di-restore
+-- MEMORY SAFE - Ga ngeloop, ga bikin memory leak
 -- ========================================
 
 local Lighting = game:GetService("Lighting")
 local Terrain = workspace:FindFirstChildOfClass("Terrain")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
 local Player = Players.LocalPlayer
 
-local IsBoostActive = false
-local OriginalFog = Lighting.FogEnd
-local OriginalShadows = Lighting.GlobalShadows
+-- ========================================
+-- 💾 BACKUP STORAGE
+-- ========================================
+local Backup = {
+    Active = false,
+    
+    -- Lighting
+    Brightness = Lighting.Brightness,
+    Ambient = Lighting.Ambient,
+    OutdoorAmbient = Lighting.OutdoorAmbient,
+    FogEnd = Lighting.FogEnd,
+    FogStart = Lighting.FogStart,
+    GlobalShadows = Lighting.GlobalShadows,
+    
+    -- Terrain
+    WaterWaveSize = nil,
+    WaterWaveSpeed = nil,
+    WaterReflectance = nil,
+    WaterTransparency = nil,
+    
+    -- Graphics
+    QualityLevel = settings().Rendering.QualityLevel,
+    
+    -- Effects (store references untuk enable/disable)
+    LightingEffects = {},
+    
+    -- Connections
+    Connections = {}
+}
 
--- FUNGSI BOOST FPS EXTREME
+-- ========================================
+-- 🎨 NEUTRAL COLOR (Remove warna)
+-- ========================================
+local NEUTRAL_COLOR = Color3.new(0.5, 0.5, 0.5)
+
+-- ========================================
+-- 🚀 ENABLE FPS BOOST
+-- ========================================
 local function EnableFPSBoost()
-    if IsBoostActive then return end
-    IsBoostActive = true
+    if Backup.Active then 
+        warn("⚠️ FPS Boost already active!")
+        return 
+    end
     
-    -- 1. LIGHTING (matikan semua efek)
+    Backup.Active = true
+    print("🔥 Enabling FPS Boost...")
+    
+    -- ========================================
+    -- 1. LIGHTING OPTIMIZATION
+    -- ========================================
+    Lighting.Brightness = 1
+    Lighting.Ambient = NEUTRAL_COLOR
+    Lighting.OutdoorAmbient = NEUTRAL_COLOR
+    Lighting.FogEnd = 100000
+    Lighting.FogStart = 100000
     Lighting.GlobalShadows = false
-    Lighting.FogEnd = 9e9
-    Lighting.FogStart = 9e9
-    Lighting.Brightness = 0
-    Lighting.OutdoorAmbient = Color3.new(0.5, 0.5, 0.5)
-    Lighting.Ambient = Color3.new(0.5, 0.5, 0.5)
     
-    for _, v in pairs(Lighting:GetChildren()) do
-        if v:IsA("PostEffect") or v:IsA("BloomEffect") or v:IsA("SunRaysEffect") or 
-           v:IsA("ColorCorrectionEffect") or v:IsA("BlurEffect") then
-            v.Enabled = false
+    -- Disable post effects (NO DESTROY, just disable)
+    for _, effect in pairs(Lighting:GetChildren()) do
+        if effect:IsA("PostEffect") or effect:IsA("BloomEffect") or 
+           effect:IsA("SunRaysEffect") or effect:IsA("ColorCorrectionEffect") or 
+           effect:IsA("BlurEffect") or effect:IsA("DepthOfFieldEffect") then
+            
+            if effect.Enabled then
+                table.insert(Backup.LightingEffects, effect)
+                effect.Enabled = false
+            end
         end
     end
     
-    -- 2. TERRAIN (hilangin air & dekorasi)
+    -- ========================================
+    -- 2. TERRAIN OPTIMIZATION
+    -- ========================================
     if Terrain then
+        Backup.WaterWaveSize = Terrain.WaterWaveSize
+        Backup.WaterWaveSpeed = Terrain.WaterWaveSpeed
+        Backup.WaterReflectance = Terrain.WaterReflectance
+        Backup.WaterTransparency = Terrain.WaterTransparency
+        
         Terrain.WaterWaveSize = 0
         Terrain.WaterWaveSpeed = 0
         Terrain.WaterReflectance = 0
@@ -40,140 +99,154 @@ local function EnableFPSBoost()
         Terrain.Decoration = false
     end
     
-    -- 3. WORKSPACE - DESTROY YANG GA PENTING
+    -- ========================================
+    -- 3. GRAPHICS SETTINGS
+    -- ========================================
+    settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+    
+    pcall(function()
+        settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level01
+    end)
+    
+    -- ========================================
+    -- 4. WORKSPACE OPTIMIZATION (1x ONLY, NO LOOP!)
+    -- ========================================
+    local optimizedCount = 0
+    
     for _, obj in pairs(workspace:GetDescendants()) do
         
-        -- Particles & Effects (paling berat)
-        if obj:IsA("ParticleEmitter") or obj:IsA("Beam") or obj:IsA("Trail") then
-            obj:Destroy()
-        elseif obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
-            obj:Destroy()
-        elseif obj:IsA("Explosion") then
-            obj:Destroy()
+        -- Particles (Disable, not destroy)
+        if obj:IsA("ParticleEmitter") then
+            if obj.Enabled then
+                obj.Enabled = false
+                optimizedCount = optimizedCount + 1
+            end
             
-        -- Lights (bikin shadow & reflection)
+        -- Beams & Trails
+        elseif obj:IsA("Beam") or obj:IsA("Trail") then
+            if obj.Enabled then
+                obj.Enabled = false
+                optimizedCount = optimizedCount + 1
+            end
+            
+        -- Lights (Disable)
         elseif obj:IsA("PointLight") or obj:IsA("SpotLight") or obj:IsA("SurfaceLight") then
-            obj:Destroy()
-            
-        -- Sounds yang ga penting
-        elseif obj:IsA("Sound") then
-            if not obj:FindFirstAncestorOfClass("PlayerGui") then
-                obj:Destroy()
+            if obj.Enabled then
+                obj.Enabled = false
+                optimizedCount = optimizedCount + 1
             end
             
-        -- BasePart optimizations
+        -- Parts (Shadow only)
         elseif obj:IsA("BasePart") then
-            obj.CastShadow = false
-            obj.Material = Enum.Material.SmoothPlastic
-            
-            -- Hilangin dekorasi (daun, rumput, pohon, dll)
-            local name = obj.Name:lower()
-            if name:match("leaf") or name:match("grass") or name:match("tree") or 
-               name:match("bush") or name:match("plant") or name:match("flower") or
-               name:match("decoration") or name:match("detail") then
-                obj.Transparency = 1
-                obj.CanCollide = false
+            if obj.CastShadow then
+                obj.CastShadow = false
+                optimizedCount = optimizedCount + 1
             end
-            
-        -- Textures & Decals (bikin lag render)
-        elseif obj:IsA("Decal") or obj:IsA("Texture") then
-            obj:Destroy()
-            
-        -- Mesh textures
-        elseif obj:IsA("SpecialMesh") then
-            obj.TextureId = ""
-            
-        -- Sky & Atmosphere
-        elseif obj:IsA("Sky") then
-            obj:Destroy()
-        elseif obj:IsA("Atmosphere") then
-            obj:Destroy()
-            
-        -- Clouds
-        elseif obj:IsA("Clouds") then
-            obj:Destroy()
+        end
+        
+        -- Limit checks per frame to avoid freeze
+        if optimizedCount % 500 == 0 then
+            task.wait()
         end
     end
     
-    -- 4. GRAPHICS SETTINGS (paling extreme)
-    local rendering = settings().Rendering
-    rendering.QualityLevel = Enum.QualityLevel.Level01
-    rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level01
-    
-    -- Extra optimizations
-    pcall(function()
-        rendering.EditQualityLevel = Enum.QualityLevel.Level01
-    end)
-    
-    -- 5. PLAYER CHARACTERS (hapus accessories & shadows)
+    -- ========================================
+    -- 5. PLAYER CHARACTERS (Current only)
+    -- ========================================
     for _, plr in pairs(Players:GetPlayers()) do
         if plr.Character then
             for _, part in pairs(plr.Character:GetDescendants()) do
-                if part:IsA("BasePart") then
+                if part:IsA("BasePart") and part.CastShadow then
                     part.CastShadow = false
-                    part.Material = Enum.Material.SmoothPlastic
-                elseif part:IsA("Accessory") or part:IsA("Hat") then
-                    if plr ~= Player then -- Hapus accessories player lain
-                        part:Destroy()
-                    end
-                elseif part:IsA("Decal") or part:IsA("Texture") then
-                    part:Destroy()
                 end
             end
         end
     end
     
-    -- 6. AUTO-OPTIMIZE NEW PLAYERS
-    Players.PlayerAdded:Connect(function(plr)
-        plr.CharacterAdded:Connect(function(char)
-            task.wait(0.5)
+    -- ========================================
+    -- 6. NEW PLAYER AUTO-OPTIMIZE (Lightweight)
+    -- ========================================
+    local newPlayerConn = Players.PlayerAdded:Connect(function(plr)
+        local charConn = plr.CharacterAdded:Connect(function(char)
+            task.wait(1)
             for _, part in pairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then
+                if part:IsA("BasePart") and part.CastShadow then
                     part.CastShadow = false
-                    part.Material = Enum.Material.SmoothPlastic
-                elseif part:IsA("Accessory") and plr ~= Player then
-                    part:Destroy()
                 end
             end
         end)
+        table.insert(Backup.Connections, charConn)
     end)
     
-    print("✅ FPS Boost EXTREME Aktif! 🔥")
+    table.insert(Backup.Connections, newPlayerConn)
+    
+    print(string.format("✅ FPS Boost Active! Optimized %d objects", optimizedCount))
 end
 
--- FUNGSI DISABLE (restore minimal)
+-- ========================================
+-- ❌ DISABLE FPS BOOST (RESTORE)
+-- ========================================
 local function DisableFPSBoost()
-    if not IsBoostActive then return end
-    IsBoostActive = false
-    
-    -- Restore lighting
-    Lighting.GlobalShadows = OriginalShadows
-    Lighting.FogEnd = OriginalFog
-    Lighting.Brightness = 1
-    
-    for _, v in pairs(Lighting:GetChildren()) do
-        if v:IsA("PostEffect") then
-            v.Enabled = true
-        end
+    if not Backup.Active then 
+        warn("⚠️ FPS Boost not active!")
+        return 
     end
     
-    -- Restore terrain
-    if Terrain then
-        Terrain.WaterWaveSize = 0.15
-        Terrain.WaterReflectance = 1
-        Terrain.WaterTransparency = 0.3
+    Backup.Active = false
+    print("🔄 Disabling FPS Boost...")
+    
+    -- ========================================
+    -- 1. RESTORE LIGHTING
+    -- ========================================
+    Lighting.Brightness = Backup.Brightness
+    Lighting.Ambient = Backup.Ambient
+    Lighting.OutdoorAmbient = Backup.OutdoorAmbient
+    Lighting.FogEnd = Backup.FogEnd
+    Lighting.FogStart = Backup.FogStart
+    Lighting.GlobalShadows = Backup.GlobalShadows
+    
+    -- Re-enable effects
+    for _, effect in pairs(Backup.LightingEffects) do
+        if effect and effect.Parent then
+            effect.Enabled = true
+        end
+    end
+    Backup.LightingEffects = {}
+    
+    -- ========================================
+    -- 2. RESTORE TERRAIN
+    -- ========================================
+    if Terrain and Backup.WaterWaveSize then
+        Terrain.WaterWaveSize = Backup.WaterWaveSize
+        Terrain.WaterWaveSpeed = Backup.WaterWaveSpeed
+        Terrain.WaterReflectance = Backup.WaterReflectance
+        Terrain.WaterTransparency = Backup.WaterTransparency
         Terrain.Decoration = true
     end
     
-    -- Restore graphics
-    settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
+    -- ========================================
+    -- 3. RESTORE GRAPHICS
+    -- ========================================
+    settings().Rendering.QualityLevel = Backup.QualityLevel
     
-    print("❌ FPS Boost Nonaktif")
+    -- ========================================
+    -- 4. DISCONNECT CONNECTIONS
+    -- ========================================
+    for _, conn in pairs(Backup.Connections) do
+        if conn.Connected then
+            conn:Disconnect()
+        end
+    end
+    Backup.Connections = {}
+    
+    print("❌ FPS Boost Disabled - Settings Restored")
 end
 
+-- ========================================
+-- 📤 RETURN MODULE
+-- ========================================
 return {
     Enable = EnableFPSBoost,
-    Disable = DisableFPSBoost
+    Disable = DisableFPSBoost,
+    IsActive = function() return Backup.Active end
 }
-
-
