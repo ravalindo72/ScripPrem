@@ -172,15 +172,4 @@ local function DisableFPSBoost()
 end
 
 -- UI TOGGLE
-VyperUI:CreateToggle(PlayerTab, {
-    Title = "🔥 FPS Boost EXTREME",
-    Subtitle = "Performa maksimal • Hilangin semua yang ga penting",
-    Default = false,
-    Callback = function(state)
-        if state then
-            EnableFPSBoost()
-        else
-            DisableFPSBoost()
-        end
-    end
-})
+
