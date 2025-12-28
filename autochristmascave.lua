@@ -3,11 +3,8 @@
 -- ========================================
 -- SAFE: Client-side only, no server manipulation
 -- LOGIC: Auto detect event every 2 hours → Auto teleport → Auto exit after 30 min
--- 🔥 FPS BOOST EXTREME (MAKSIMAL PERFORMA)
 -- ========================================
 
-local Lighting = game:GetService("Lighting")
-local Terrain = workspace:FindFirstChildOfClass("Terrain")
 local Players = game:GetService("Players")
 local StarterGui = game:GetService("StarterGui")
 
@@ -22,13 +19,6 @@ local AutoEvent = {
     InEvent = false,
     Connections = {},
     LastCheck = 0
-}
-
-local FPSBoost = {
-    Enabled = false,
-    OriginalFog = nil,
-    OriginalShadows = nil,
-    OriginalBrightness = nil
 }
 
 -- ========================================
@@ -80,151 +70,6 @@ local function GetEventTimeInfo()
 end
 
 -- ========================================
--- 🔥 FPS BOOST FUNCTIONS
--- ========================================
-
-local function EnableFPSBoost()
-    if FPSBoost.Enabled then return end
-    FPSBoost.Enabled = true
-    
-    -- Save original settings
-    FPSBoost.OriginalFog = Lighting.FogEnd
-    FPSBoost.OriginalShadows = Lighting.GlobalShadows
-    FPSBoost.OriginalBrightness = Lighting.Brightness
-    
-    -- 1. LIGHTING (matikan semua efek)
-    Lighting.GlobalShadows = false
-    Lighting.FogEnd = 9e9
-    Lighting.FogStart = 9e9
-    Lighting.Brightness = 0
-    Lighting.OutdoorAmbient = Color3.new(0.5, 0.5, 0.5)
-    Lighting.Ambient = Color3.new(0.5, 0.5, 0.5)
-    
-    for _, v in pairs(Lighting:GetChildren()) do
-        if v:IsA("PostEffect") or v:IsA("BloomEffect") or v:IsA("SunRaysEffect") or 
-           v:IsA("ColorCorrectionEffect") or v:IsA("BlurEffect") then
-            v.Enabled = false
-        end
-    end
-    
-    -- 2. TERRAIN (hilangin air & dekorasi)
-    if Terrain then
-        Terrain.WaterWaveSize = 0
-        Terrain.WaterWaveSpeed = 0
-        Terrain.WaterReflectance = 0
-        Terrain.WaterTransparency = 1
-        Terrain.Decoration = false
-    end
-    
-    -- 3. WORKSPACE - DESTROY YANG GA PENTING
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("ParticleEmitter") or obj:IsA("Beam") or obj:IsA("Trail") then
-            obj:Destroy()
-        elseif obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
-            obj:Destroy()
-        elseif obj:IsA("Explosion") then
-            obj:Destroy()
-        elseif obj:IsA("PointLight") or obj:IsA("SpotLight") or obj:IsA("SurfaceLight") then
-            obj:Destroy()
-        elseif obj:IsA("Sound") then
-            if not obj:FindFirstAncestorOfClass("PlayerGui") then
-                obj:Destroy()
-            end
-        elseif obj:IsA("BasePart") then
-            obj.CastShadow = false
-            obj.Material = Enum.Material.SmoothPlastic
-            
-            local name = obj.Name:lower()
-            if name:match("leaf") or name:match("grass") or name:match("tree") or 
-               name:match("bush") or name:match("plant") or name:match("flower") or
-               name:match("decoration") or name:match("detail") then
-                obj.Transparency = 1
-                obj.CanCollide = false
-            end
-        elseif obj:IsA("Decal") or obj:IsA("Texture") then
-            obj:Destroy()
-        elseif obj:IsA("SpecialMesh") then
-            obj.TextureId = ""
-        elseif obj:IsA("Sky") or obj:IsA("Atmosphere") or obj:IsA("Clouds") then
-            obj:Destroy()
-        end
-    end
-    
-    -- 4. GRAPHICS SETTINGS
-    local rendering = settings().Rendering
-    rendering.QualityLevel = Enum.QualityLevel.Level01
-    rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level01
-    
-    pcall(function()
-        rendering.EditQualityLevel = Enum.QualityLevel.Level01
-    end)
-    
-    -- 5. PLAYER CHARACTERS
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr.Character then
-            for _, part in pairs(plr.Character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CastShadow = false
-                    part.Material = Enum.Material.SmoothPlastic
-                elseif part:IsA("Accessory") or part:IsA("Hat") then
-                    if plr ~= LocalPlayer then
-                        part:Destroy()
-                    end
-                elseif part:IsA("Decal") or part:IsA("Texture") then
-                    part:Destroy()
-                end
-            end
-        end
-    end
-    
-    -- 6. AUTO-OPTIMIZE NEW PLAYERS
-    Players.PlayerAdded:Connect(function(plr)
-        plr.CharacterAdded:Connect(function(char)
-            task.wait(0.5)
-            for _, part in pairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CastShadow = false
-                    part.Material = Enum.Material.SmoothPlastic
-                elseif part:IsA("Accessory") and plr ~= LocalPlayer then
-                    part:Destroy()
-                end
-            end
-        end)
-    end)
-    
-    print("✅ FPS Boost EXTREME Aktif! 🔥")
-end
-
-local function DisableFPSBoost()
-    if not FPSBoost.Enabled then return end
-    FPSBoost.Enabled = false
-    
-    -- Restore lighting
-    Lighting.GlobalShadows = FPSBoost.OriginalShadows
-    Lighting.FogEnd = FPSBoost.OriginalFog
-    Lighting.Brightness = FPSBoost.OriginalBrightness
-    
-    for _, v in pairs(Lighting:GetChildren()) do
-        if v:IsA("PostEffect") then
-            v.Enabled = true
-        end
-    end
-    
-    -- Restore terrain
-    if Terrain then
-        Terrain.WaterWaveSize = 0.15
-        Terrain.WaterReflectance = 1
-        Terrain.WaterTransparency = 0.3
-        Terrain.Decoration = true
-    end
-    
-    -- Restore graphics
-    settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
-    
-    print("❌ FPS Boost Nonaktif")
-end
-
--- ========================================
 -- 🚀 CORE EVENT FUNCTIONS
 -- ========================================
 
@@ -239,9 +84,6 @@ local function EnterEvent()
 
     AutoEvent.InEvent = true
     print("🎄 [ChristmasCave] Event detected! Entering...")
-    
-    -- Enable FPS boost
-    EnableFPSBoost()
     
     -- Teleport to cave
     task.wait(0.5)
@@ -266,9 +108,6 @@ local function ExitEvent()
     
     AutoEvent.InEvent = false
     print("🚪 [ChristmasCave] Event ended, exiting...")
-    
-    -- Disable FPS boost
-    DisableFPSBoost()
     
     if AutoEvent.SavedCFrame then
         local char = GetCharacter()
