@@ -171,5 +171,9 @@ local function DisableFPSBoost()
     print("❌ FPS Boost Nonaktif")
 end
 
--- UI TOGGLE
+return {
+    Enable = EnableFPSBoost,
+    Disable = DisableFPSBoost
+}
+
 
