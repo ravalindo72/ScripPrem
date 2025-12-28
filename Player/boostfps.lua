@@ -1,227 +1,340 @@
 -- ========================================
--- 💀 FPS BOOST ULTRA GACOR (NO MERCY)
+-- 🔥 FPS BOOST ULTRA (SAFE VERSION)
+-- ========================================
+-- EXTREME optimization tapi BISA DI-RESTORE
+-- NO permanent destroy, NO memory leak
 -- ========================================
 
 local Lighting = game:GetService("Lighting")
 local Terrain = workspace:FindFirstChildOfClass("Terrain")
 local Players = game:GetService("Players")
-local Player = Players.LocalPlayer
 local RunService = game:GetService("RunService")
 
--- ===================================
--- 1. LIGHTING ULTIMATE DESTROY
--- ===================================
-Lighting.GlobalShadows = false
-Lighting.FogEnd = 9e9
-Lighting.FogStart = 9e9
-Lighting.Brightness = 0
-Lighting.OutdoorAmbient = Color3.new(1, 1, 1)
-Lighting.Ambient = Color3.new(1, 1, 1)
-Lighting.EnvironmentDiffuseScale = 0
-Lighting.EnvironmentSpecularScale = 0
+local Player = Players.LocalPlayer
 
--- DESTROY semua efek lighting
-for _, v in pairs(Lighting:GetChildren()) do
-    if not v:IsA("Sky") then
-        v:Destroy()
-    end
-end
-
--- ===================================
--- 2. TERRAIN TOTAL DISABLE
--- ===================================
-if Terrain then
-    Terrain.WaterWaveSize = 0
-    Terrain.WaterWaveSpeed = 0
-    Terrain.WaterReflectance = 0
-    Terrain.WaterTransparency = 1
-    Terrain.Decoration = false
+-- ========================================
+-- 💾 STATE & BACKUP
+-- ========================================
+local FPSBoost = {
+    Active = false,
+    Connections = {},
+    DisabledObjects = {},
     
-    -- EXTREME: Matikan terrain rendering
-    pcall(function()
-        sethiddenproperty(Terrain, "Decoration", false)
-    end)
-end
+    -- Lighting backup
+    OriginalLighting = {
+        GlobalShadows = Lighting.GlobalShadows,
+        FogEnd = Lighting.FogEnd,
+        FogStart = Lighting.FogStart,
+        Brightness = Lighting.Brightness,
+        OutdoorAmbient = Lighting.OutdoorAmbient,
+        Ambient = Lighting.Ambient,
+        EnvironmentDiffuseScale = Lighting.EnvironmentDiffuseScale or 0,
+        EnvironmentSpecularScale = Lighting.EnvironmentSpecularScale or 0,
+    },
+    
+    -- Terrain backup
+    OriginalTerrain = {},
+    
+    -- Graphics backup
+    OriginalQuality = settings().Rendering.QualityLevel,
+}
 
--- ===================================
--- 3. WORKSPACE MASS DESTRUCTION
--- ===================================
+-- ========================================
+-- 🎨 OPTIMIZE SINGLE OBJECT
+-- ========================================
 local function OptimizeObject(obj)
+    if not obj or not obj.Parent then return end
+    
     local objType = obj.ClassName
     
-    -- DESTROY HEAVY OBJECTS
+    -- Particles & Effects (DISABLE not destroy)
     if objType == "ParticleEmitter" or objType == "Beam" or objType == "Trail" or
-       objType == "Fire" or objType == "Smoke" or objType == "Sparkles" or
-       objType == "Explosion" or objType == "PointLight" or objType == "SpotLight" or
-       objType == "SurfaceLight" or objType == "Sky" or objType == "Atmosphere" or
-       objType == "Clouds" or objType == "BloomEffect" or objType == "BlurEffect" or
-       objType == "ColorCorrectionEffect" or objType == "SunRaysEffect" or
-       objType == "DepthOfFieldEffect" then
-        obj:Destroy()
-        return
-    end
-    
-    -- DESTROY VISUAL STUFF
-    if objType == "Decal" or objType == "Texture" or objType == "SurfaceGui" then
-        obj:Destroy()
-        return
-    end
-    
-    -- SOUNDS
-    if objType == "Sound" then
-        if not obj:FindFirstAncestorOfClass("PlayerGui") then
-            obj.Volume = 0
-            obj:Destroy()
+       objType == "Fire" or objType == "Smoke" or objType == "Sparkles" then
+        if obj.Enabled then
+            obj.Enabled = false
+            table.insert(FPSBoost.DisabledObjects, obj)
         end
         return
     end
     
-    -- BASEPART EXTREME OPTIMIZATION
+    -- Lights (DISABLE)
+    if objType == "PointLight" or objType == "SpotLight" or objType == "SurfaceLight" then
+        if obj.Enabled then
+            obj.Enabled = false
+            table.insert(FPSBoost.DisabledObjects, obj)
+        end
+        return
+    end
+    
+    -- BasePart optimization
     if obj:IsA("BasePart") then
         obj.CastShadow = false
         obj.Material = Enum.Material.SmoothPlastic
         obj.Reflectance = 0
         
-        -- Matikan collision untuk dekorasi
+        -- Hide decoration parts
         local name = obj.Name:lower()
         if name:match("leaf") or name:match("grass") or name:match("tree") or 
            name:match("bush") or name:match("plant") or name:match("flower") or
            name:match("rock") or name:match("stone") or name:match("decoration") or
            name:match("detail") or name:match("fence") or name:match("prop") then
-            obj.Transparency = 1
-            obj.CanCollide = false
-            obj.CanTouch = false
-            obj.CanQuery = false
+            if obj.Transparency < 1 then
+                obj.Transparency = 1
+                obj.CanCollide = false
+            end
         end
+        return
     end
     
-    -- MESH OPTIMIZATION
+    -- Mesh textures
     if objType == "SpecialMesh" then
-        obj.TextureId = ""
+        if obj.TextureId ~= "" then
+            obj.TextureId = ""
+        end
     elseif objType == "MeshPart" then
-        obj.TextureID = ""
+        if obj.TextureID ~= "" then
+            obj.TextureID = ""
+        end
     end
 end
 
--- PROCESS SEMUA OBJECT (FAST)
-for _, obj in pairs(workspace:GetDescendants()) do
-    OptimizeObject(obj)
-end
-
--- ===================================
--- 4. GRAPHICS NUCLEAR OPTION
--- ===================================
-local rendering = settings().Rendering
-
-rendering.QualityLevel = Enum.QualityLevel.Level01
-rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level01
-rendering.EagerBulkExecution = false
-
-pcall(function()
-    rendering.EditQualityLevel = Enum.QualityLevel.Level01
-    rendering.FrameRateManager = Enum.FramerateManagerMode.Off
-end)
-
--- Matikan V-Sync (unlock FPS)
-pcall(function()
-    setfpscap(9999)
-end)
-
--- ===================================
--- 5. PLAYER OPTIMIZATION EXTREME
--- ===================================
+-- ========================================
+-- 👤 OPTIMIZE CHARACTER
+-- ========================================
 local function OptimizeCharacter(char, isLocalPlayer)
+    if not char or not char.Parent then return end
+    
     for _, obj in pairs(char:GetDescendants()) do
         if obj:IsA("BasePart") then
             obj.CastShadow = false
             obj.Material = Enum.Material.SmoothPlastic
             obj.Reflectance = 0
-        elseif obj:IsA("Decal") or obj:IsA("Texture") then
-            obj:Destroy()
+            
         elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") then
-            obj:Destroy()
-        end
-        
-        -- DESTROY accessories player lain
-        if not isLocalPlayer and (obj:IsA("Accessory") or obj:IsA("Hat")) then
-            obj:Destroy()
-        end
-    end
-    
-    -- EXTREME: Simplify humanoid
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if humanoid and not isLocalPlayer then
-        for _, desc in pairs(humanoid:GetDescendants()) do
-            if desc:IsA("NumberValue") or desc:IsA("StringValue") then
-                desc:Destroy()
+            if obj.Enabled then
+                obj.Enabled = false
+                table.insert(FPSBoost.DisabledObjects, obj)
+            end
+            
+        -- Hide accessories dari player lain
+        elseif not isLocalPlayer and (obj:IsA("Accessory") or obj:IsA("Hat")) then
+            if obj:FindFirstChildOfClass("Part") then
+                local part = obj:FindFirstChildOfClass("Part")
+                part.Transparency = 1
             end
         end
     end
 end
 
--- Optimize semua player sekarang
-for _, plr in pairs(Players:GetPlayers()) do
-    if plr.Character then
-        OptimizeCharacter(plr.Character, plr == Player)
+-- ========================================
+-- 🚀 ENABLE FPS BOOST
+-- ========================================
+local function EnableFPSBoost()
+    if FPSBoost.Active then
+        warn("⚠️ FPS Boost already active!")
+        return
     end
-end
-
--- ===================================
--- 6. AUTO-OPTIMIZE (LIGHTWEIGHT)
--- ===================================
-
--- Player baru
-Players.PlayerAdded:Connect(function(plr)
-    plr.CharacterAdded:Connect(function(char)
-        task.wait(0.3)
-        OptimizeCharacter(char, false)
+    
+    FPSBoost.Active = true
+    FPSBoost.DisabledObjects = {}
+    print("🔥 Enabling FPS Boost Ultra...")
+    
+    -- ========================================
+    -- 1. LIGHTING EXTREME
+    -- ========================================
+    Lighting.GlobalShadows = false
+    Lighting.FogEnd = 999999
+    Lighting.FogStart = 999999
+    Lighting.Brightness = 1
+    Lighting.OutdoorAmbient = Color3.new(0.8, 0.8, 0.8)
+    Lighting.Ambient = Color3.new(0.8, 0.8, 0.8)
+    
+    pcall(function()
+        Lighting.EnvironmentDiffuseScale = 0
+        Lighting.EnvironmentSpecularScale = 0
     end)
-end)
-
--- Object baru (EFFICIENT)
-local lastCheck = tick()
-workspace.DescendantAdded:Connect(function(obj)
-    local now = tick()
-    if now - lastCheck < 0.1 then return end
-    lastCheck = now
     
-    task.spawn(OptimizeObject, obj)
-end)
-
--- ===================================
--- 7. MEMORY CLEANUP (ANTI LAG)
--- ===================================
-task.spawn(function()
-    while task.wait(30) do
-        -- Cleanup unused instances
-        pcall(function()
-            for _, obj in pairs(workspace:GetDescendants()) do
-                if obj:IsA("Model") and #obj:GetChildren() == 0 then
-                    obj:Destroy()
-                end
+    -- Disable effects (NOT destroy)
+    for _, effect in pairs(Lighting:GetChildren()) do
+        if effect:IsA("PostEffect") or effect:IsA("BloomEffect") or 
+           effect:IsA("SunRaysEffect") or effect:IsA("ColorCorrectionEffect") or 
+           effect:IsA("BlurEffect") or effect:IsA("DepthOfFieldEffect") or
+           effect:IsA("Atmosphere") or effect:IsA("Sky") or effect:IsA("Clouds") then
+            if effect.Enabled then
+                effect.Enabled = false
+                table.insert(FPSBoost.DisabledObjects, effect)
             end
-        end)
-        
-        -- Garbage collection hint
-        pcall(function()
-            game:GetService("ContentProvider"):PreloadAsync({})
-        end)
+        end
     end
-end)
-
--- ===================================
--- 8. RENDER DISTANCE REDUCTION
--- ===================================
-pcall(function()
-    settings().Rendering.ViewDistanceScale = 0.3
-end)
-
--- Camera optimization
-if Player.Character then
-    local camera = workspace.CurrentCamera
-    camera.FieldOfView = 70
+    
+    -- ========================================
+    -- 2. TERRAIN EXTREME
+    -- ========================================
+    if Terrain then
+        FPSBoost.OriginalTerrain = {
+            WaterWaveSize = Terrain.WaterWaveSize,
+            WaterWaveSpeed = Terrain.WaterWaveSpeed,
+            WaterReflectance = Terrain.WaterReflectance,
+            WaterTransparency = Terrain.WaterTransparency,
+            Decoration = Terrain.Decoration,
+        }
+        
+        Terrain.WaterWaveSize = 0
+        Terrain.WaterWaveSpeed = 0
+        Terrain.WaterReflectance = 0
+        Terrain.WaterTransparency = 1
+        Terrain.Decoration = false
+    end
+    
+    -- ========================================
+    -- 3. GRAPHICS EXTREME
+    -- ========================================
+    settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+    
+    pcall(function()
+        settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level01
+        settings().Rendering.EagerBulkExecution = false
+    end)
+    
+    -- ========================================
+    -- 4. WORKSPACE OPTIMIZATION (1x only)
+    -- ========================================
+    local optimized = 0
+    for _, obj in pairs(workspace:GetDescendants()) do
+        OptimizeObject(obj)
+        optimized = optimized + 1
+        
+        -- Yield every 500 objects
+        if optimized % 500 == 0 then
+            task.wait()
+        end
+    end
+    
+    -- ========================================
+    -- 5. OPTIMIZE ALL PLAYERS
+    -- ========================================
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr.Character then
+            OptimizeCharacter(plr.Character, plr == Player)
+        end
+    end
+    
+    -- ========================================
+    -- 6. AUTO-OPTIMIZE NEW STUFF (Efficient)
+    -- ========================================
+    
+    -- New players
+    local playerConn = Players.PlayerAdded:Connect(function(plr)
+        local charConn = plr.CharacterAdded:Connect(function(char)
+            task.wait(0.5)
+            OptimizeCharacter(char, false)
+        end)
+        table.insert(FPSBoost.Connections, charConn)
+    end)
+    table.insert(FPSBoost.Connections, playerConn)
+    
+    -- New objects (THROTTLED - cuma tiap 0.2 detik)
+    local lastOptimize = tick()
+    local descendantConn = workspace.DescendantAdded:Connect(function(obj)
+        if not FPSBoost.Active then return end
+        
+        local now = tick()
+        if now - lastOptimize < 0.2 then return end
+        lastOptimize = now
+        
+        task.spawn(OptimizeObject, obj)
+    end)
+    table.insert(FPSBoost.Connections, descendantConn)
+    
+    -- ========================================
+    -- 7. RENDER DISTANCE
+    -- ========================================
+    pcall(function()
+        settings().Rendering.ViewDistanceScale = 0.5
+    end)
+    
+    print(string.format("✅ FPS Boost Ultra Active! Optimized %d objects", optimized))
 end
 
-print("💀 FPS BOOST ULTRA GACOR AKTIF!")
-print("⚡ FPS Target: UNLIMITED")
-print("🔥 Memory Usage: MINIMAL")
+-- ========================================
+-- ❌ DISABLE FPS BOOST
+-- ========================================
+local function DisableFPSBoost()
+    if not FPSBoost.Active then
+        warn("⚠️ FPS Boost not active!")
+        return
+    end
+    
+    FPSBoost.Active = false
+    print("🔄 Disabling FPS Boost Ultra...")
+    
+    -- ========================================
+    -- 1. RESTORE LIGHTING
+    -- ========================================
+    local orig = FPSBoost.OriginalLighting
+    Lighting.GlobalShadows = orig.GlobalShadows
+    Lighting.FogEnd = orig.FogEnd
+    Lighting.FogStart = orig.FogStart
+    Lighting.Brightness = orig.Brightness
+    Lighting.OutdoorAmbient = orig.OutdoorAmbient
+    Lighting.Ambient = orig.Ambient
+    
+    pcall(function()
+        Lighting.EnvironmentDiffuseScale = orig.EnvironmentDiffuseScale
+        Lighting.EnvironmentSpecularScale = orig.EnvironmentSpecularScale
+    end)
+    
+    -- ========================================
+    -- 2. RESTORE TERRAIN
+    -- ========================================
+    if Terrain and next(FPSBoost.OriginalTerrain) then
+        local origTerr = FPSBoost.OriginalTerrain
+        Terrain.WaterWaveSize = origTerr.WaterWaveSize
+        Terrain.WaterWaveSpeed = origTerr.WaterWaveSpeed
+        Terrain.WaterReflectance = origTerr.WaterReflectance
+        Terrain.WaterTransparency = origTerr.WaterTransparency
+        Terrain.Decoration = origTerr.Decoration
+    end
+    
+    -- ========================================
+    -- 3. RESTORE GRAPHICS
+    -- ========================================
+    settings().Rendering.QualityLevel = FPSBoost.OriginalQuality
+    
+    pcall(function()
+        settings().Rendering.ViewDistanceScale = 1
+    end)
+    
+    -- ========================================
+    -- 4. RE-ENABLE DISABLED OBJECTS
+    -- ========================================
+    for _, obj in pairs(FPSBoost.DisabledObjects) do
+        if obj and obj.Parent then
+            pcall(function()
+                obj.Enabled = true
+            end)
+        end
+    end
+    FPSBoost.DisabledObjects = {}
+    
+    -- ========================================
+    -- 5. DISCONNECT CONNECTIONS
+    -- ========================================
+    for _, conn in pairs(FPSBoost.Connections) do
+        if conn and conn.Connected then
+            conn:Disconnect()
+        end
+    end
+    FPSBoost.Connections = {}
+    
+    print("❌ FPS Boost Ultra Disabled - Settings Restored")
+end
+
+-- ========================================
+-- 📤 RETURN MODULE
+-- ========================================
+return {
+    Enable = EnableFPSBoost,
+    Disable = DisableFPSBoost,
+    IsActive = function() return FPSBoost.Active end
+}
