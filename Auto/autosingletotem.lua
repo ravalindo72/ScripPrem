@@ -30,6 +30,7 @@ local TOTEM_DATA = {
 -- ========================================
 local AUTO_1_TOTEM_ACTIVE = false
 local AUTO_1_TOTEM_THREAD = nil
+local AUTO_EQUIP_THREAD = nil
 local nextSpawnTime1 = 0
 local selectedTotemName = "Luck Totem"
 
@@ -59,6 +60,32 @@ local function GetTotemUUIDsByName(totemName)
 end
 
 -- ========================================
+-- AUTO EQUIP ROD LOOP
+-- ========================================
+
+local function StartAutoEquipRod()
+    if AUTO_EQUIP_THREAD then 
+        task.cancel(AUTO_EQUIP_THREAD) 
+    end
+    
+    AUTO_EQUIP_THREAD = task.spawn(function()
+        while AUTO_1_TOTEM_ACTIVE do
+            pcall(function()
+                RE_EquipToolFromHotbar:FireServer(1)
+            end)
+            task.wait(0.2)
+        end
+    end)
+end
+
+local function StopAutoEquipRod()
+    if AUTO_EQUIP_THREAD then
+        task.cancel(AUTO_EQUIP_THREAD)
+        AUTO_EQUIP_THREAD = nil
+    end
+end
+
+-- ========================================
 -- SPAWN FUNCTIONS
 -- ========================================
 
@@ -68,45 +95,11 @@ local function SpawnSingleTotem()
 
     local uuid = totemUUIDs[1]
     
-    -- Simpan status auto fish sebelumnya
-    local wasAutoFishEnabled = _G.AutoFishEnabled or false
-    local wasAutoFishEnabledV2 = _G.AutoFishEnabledV2 or false
-    local wasAutoFishEnabledV3 = _G.AutoFishEnabledV3 or false
-    
-    -- Matikan semua auto fish
-    _G.AutoFishEnabled = false
-    _G.AutoFishEnabledV2 = false
-    _G.AutoFishEnabledV3 = false
-    
-    task.wait(0.5)
-    
-    -- Spawn totem
     pcall(function() 
         SpawnTotemRemote:FireServer(uuid) 
     end)
     
     task.wait(2)
-    
-    -- Spam equip rod sampai benar-benar ke-equip
-    for i = 1, 10 do
-        pcall(function()
-            RE_EquipToolFromHotbar:FireServer(1)
-        end)
-        task.wait(0.15)
-    end
-    
-    task.wait(0.5)
-    
-    -- Nyalakan kembali auto fish yang sebelumnya aktif
-    if wasAutoFishEnabled then
-        _G.AutoFishEnabled = true
-    end
-    if wasAutoFishEnabledV2 then
-        _G.AutoFishEnabledV2 = true
-    end
-    if wasAutoFishEnabledV3 then
-        _G.AutoFishEnabledV3 = true
-    end
     
     return true
 end
@@ -149,7 +142,9 @@ local function Enable1Totem()
     AUTO_1_TOTEM_ACTIVE = true
     nextSpawnTime1 = 0
     Run1TotemLoop()
+    StartAutoEquipRod()
     print("✅ Auto 1 Totem AKTIF!")
+    print("🎣 Auto Equip Rod AKTIF!")
 end
 
 local function Disable1Totem()
@@ -160,7 +155,10 @@ local function Disable1Totem()
         task.cancel(AUTO_1_TOTEM_THREAD) 
     end
     
+    StopAutoEquipRod()
+    
     print("❌ Auto 1 Totem MATI")
+    print("❌ Auto Equip Rod MATI")
 end
 
 local function SetTotemType(totemName)
