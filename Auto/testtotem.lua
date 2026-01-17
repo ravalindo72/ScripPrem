@@ -11,7 +11,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 -- ========================================
 local Net = ReplicatedStorage.Packages["_Index"]["sleitnick_net@0.2.0"].net
 local SpawnTotemRemote = Net["RE/SpawnTotem"]
-local RE_EquipToolFromHotbar = Net["RE/EquipToolFromHotbar"]
 
 local Replion = require(ReplicatedStorage.Packages.Replion)
 local clientData = Replion.Client:WaitReplion("Data")
@@ -58,21 +57,6 @@ local function GetTotemUUIDsByName(totemName)
     return list
 end
 
-local function IsRodEquipped()
-    local player = Players.LocalPlayer
-    local character = player.Character
-    if not character then return false end
-    
-    -- Cek apakah ada tool yang equipped (di character)
-    local tool = character:FindFirstChildOfClass("Tool")
-    if tool then
-        -- Opsional: cek nama tool kalau mau lebih spesifik
-        -- return tool.Name:match("Rod") ~= nil
-        return true
-    end
-    return false
-end
-
 -- ========================================
 -- SPAWN FUNCTIONS
 -- ========================================
@@ -86,26 +70,6 @@ local function SpawnSingleTotem()
     pcall(function() 
         SpawnTotemRemote:FireServer(uuid) 
     end)
-    
-    task.wait(2)
-    
-    -- Spam equip rod SAMPAI BERHASIL atau timeout
-    local maxAttempts = 30  -- Max 30x coba (30 detik)
-    local attempt = 0
-    
-    while not IsRodEquipped() and attempt < maxAttempts do
-        pcall(function()
-            RE_EquipToolFromHotbar:FireServer(1)
-        end)
-        attempt = attempt + 1
-        task.wait(1)  -- Cek tiap 1 detik
-    end
-    
-    if IsRodEquipped() then
-        print("✅ Rod berhasil equipped setelah", attempt, "attempts")
-    else
-        warn("⚠️ Rod gagal equipped setelah", maxAttempts, "attempts")
-    end
     
     return true
 end
