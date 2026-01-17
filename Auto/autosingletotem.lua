@@ -79,7 +79,7 @@ local function SpawnSingleTotem()
         pcall(function()
             RE_EquipToolFromHotbar:FireServer(1)
         end)
-        task.wait(0.15)
+        task.wait(0.01)
     end
     
     return true
