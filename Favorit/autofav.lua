@@ -1,5 +1,5 @@
 -- ========================================
--- 🌟 AUTO FAVORITE MODULE - ULTRA STABLE
+-- 🌟 AUTO FAVORITE MODULE - ULTRA STABLE V2
 -- ========================================
 
 local Players = game:GetService("Players")
@@ -66,12 +66,24 @@ end
 -- ===============================
 
 local function OnFishObtained(itemId, metadata, extraData)
-    if not extraData or not extraData.InventoryItem then return end
+    print("🔔 Fish obtained event triggered!")
+    
+    if not extraData or not extraData.InventoryItem then 
+        print("❌ No extraData or InventoryItem")
+        return 
+    end
+    
     local inventoryItem = extraData.InventoryItem
-    if inventoryItem.Favorited then return end
+    if inventoryItem.Favorited then 
+        print("⭐ Already favorited, skipping")
+        return 
+    end
 
     local uuid = inventoryItem.UUID
-    if not uuid then return end
+    if not uuid then 
+        print("❌ No UUID found")
+        return 
+    end
 
     local shouldFavorite = false
 
@@ -110,8 +122,10 @@ local function OnFishObtained(itemId, metadata, extraData)
             pcall(function()
                 FavoriteEvent:FireServer(uuid)
             end)
-            print("⭐ Auto Favorited:", itemId)
+            print("⭐ Auto Favorited:", itemId, "UUID:", uuid)
         end)
+    else
+        print("⏭️ No match, skipping favorite")
     end
 end
 
@@ -120,14 +134,21 @@ end
 -- ===============================
 
 local function EnableAutoFavorite()
-    if IsActive then return end
+    -- 🔥 FORCE DISCONNECT DULU SEBELUM CONNECT BARU
+    for _, conn in pairs(Connections) do
+        if typeof(conn) == "RBXScriptConnection" then
+            conn:Disconnect()
+        end
+    end
+    Connections = {}
+    
     IsActive = true
     
     -- Connect listener
     local conn = NotificationEvent.OnClientEvent:Connect(OnFishObtained)
     table.insert(Connections, conn)
     
-    print("✅ Auto Favorite Module AKTIF!")
+    print("✅ Auto Favorite Module AKTIF! (Event Listener Connected)")
 end
 
 local function DisableAutoFavorite()
@@ -146,19 +167,25 @@ local function DisableAutoFavorite()
 end
 
 -- ===============================
--- AUTO-ENABLE HELPER (FIX UTAMA!)
+-- FORCE RESTART HELPER
 -- ===============================
 
-local function AutoEnableIfNeeded()
-    -- Cek apakah ada yang aktif
+local function ForceRestart()
+    -- Cek apakah ada setting yang aktif
     local hasActiveSettings = AUTO_FAVORITE_ENABLED or 
                               AUTO_FAVORITE_VARIANT_ENABLED or 
                               AUTO_FAVORITE_NAME_ENABLED
     
-    -- Kalo ada setting tapi module belum aktif, auto-enable
-    if hasActiveSettings and not IsActive then
+    if hasActiveSettings then
+        -- 🔥 FORCE RESTART MODULE
+        DisableAutoFavorite()
+        task.wait(0.1)
         EnableAutoFavorite()
-        print("🔥 Auto-enabled karena ada settings aktif!")
+        print("🔄 Module restarted dengan settings baru!")
+    else
+        -- Kalo gak ada settings, matiin aja
+        DisableAutoFavorite()
+        print("⚠️ Semua settings kosong, module dimatikan")
     end
 end
 
@@ -180,10 +207,12 @@ local function SetTiers(tierNames)
     
     if AUTO_FAVORITE_ENABLED then
         print("✅ Auto Favorite Tiers:", table.concat(tierNames, ", "))
+    else
+        print("⚠️ Tier settings cleared")
     end
     
-    -- 🔥 AUTO-ENABLE!
-    AutoEnableIfNeeded()
+    -- 🔥 FORCE RESTART!
+    ForceRestart()
 end
 
 local function SetVariants(variantNames)
@@ -197,10 +226,12 @@ local function SetVariants(variantNames)
     
     if AUTO_FAVORITE_VARIANT_ENABLED then
         print("✨ Auto Favorite Variants:", table.concat(variantNames, ", "))
+    else
+        print("⚠️ Variant settings cleared")
     end
     
-    -- 🔥 AUTO-ENABLE!
-    AutoEnableIfNeeded()
+    -- 🔥 FORCE RESTART!
+    ForceRestart()
 end
 
 local function SetFishNames(fishNames)
@@ -214,10 +245,12 @@ local function SetFishNames(fishNames)
     
     if AUTO_FAVORITE_NAME_ENABLED then
         print("🐟 Auto Favorite Names:", table.concat(fishNames, ", "))
+    else
+        print("⚠️ Fish name settings cleared")
     end
     
-    -- 🔥 AUTO-ENABLE!
-    AutoEnableIfNeeded()
+    -- 🔥 FORCE RESTART!
+    ForceRestart()
 end
 
 -- ===============================
