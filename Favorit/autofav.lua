@@ -1,5 +1,5 @@
 -- ========================================
--- 🌟 AUTO FAVORITE MODULE - ULTRA STABLE V2
+-- 🌟 AUTO FAVORITE MODULE - ULTRA STABLE
 -- ========================================
 
 local Players = game:GetService("Players")
@@ -15,6 +15,12 @@ local AUTO_FAVORITE_VARIANTS = {}
 local AUTO_FAVORITE_VARIANT_ENABLED = false
 local AUTO_FAVORITE_NAME_ENABLED = false
 local AUTO_FAVORITE_FISH_NAMES = {}
+
+-- Getters for Self-Healing
+local FishNamesGetter = nil
+local TiersGetter = nil
+local VariantsGetter = nil
+
 
 -- Tier mapping
 local TIER_MAP = {
@@ -66,28 +72,26 @@ end
 -- ===============================
 
 local function OnFishObtained(itemId, metadata, extraData)
-    print("🔔 Fish obtained event triggered!")
-    
-    if not extraData or not extraData.InventoryItem then 
-        print("❌ No extraData or InventoryItem")
-        return 
-    end
-    
+    if not extraData or not extraData.InventoryItem then return end
     local inventoryItem = extraData.InventoryItem
-    if inventoryItem.Favorited then 
-        print("⭐ Already favorited, skipping")
-        return 
-    end
+    if inventoryItem.Favorited then return end
 
     local uuid = inventoryItem.UUID
-    if not uuid then 
-        print("❌ No UUID found")
-        return 
-    end
+    if not uuid then return end
 
     local shouldFavorite = false
 
     -- CHECK NAME (Priority #1)
+    
+    -- Needs Self-Healing?
+    if (not AUTO_FAVORITE_NAME_ENABLED or next(AUTO_FAVORITE_FISH_NAMES) == nil) and FishNamesGetter then
+        local names = FishNamesGetter()
+        if names and #names > 0 then
+             SetFishNames(names)
+             print("🩹 [AutoFav] Self-Healed Fish Names:", #names)
+        end
+    end
+
     if not shouldFavorite and AUTO_FAVORITE_NAME_ENABLED then
         local fishData = getFishData(itemId)
         local fishName = fishData and fishData.Data and fishData.Data.Name
@@ -99,6 +103,16 @@ local function OnFishObtained(itemId, metadata, extraData)
     end
 
     -- CHECK TIER (Priority #2)
+    
+    -- Needs Self-Healing?
+    if (not AUTO_FAVORITE_ENABLED or next(AUTO_FAVORITE_TIERS) == nil) and TiersGetter then
+        local tiers = TiersGetter()
+        if tiers and #tiers > 0 then
+             SetTiers(tiers)
+             print("🩹 [AutoFav] Self-Healed Tiers:", #tiers)
+        end
+    end
+
     if not shouldFavorite and AUTO_FAVORITE_ENABLED then
         local fishData = getFishData(itemId)
         if fishData and fishData.Data and AUTO_FAVORITE_TIERS[fishData.Data.Tier] then
@@ -108,6 +122,16 @@ local function OnFishObtained(itemId, metadata, extraData)
     end
 
     -- CHECK VARIANT (Priority #3)
+
+    -- Needs Self-Healing?
+    if (not AUTO_FAVORITE_VARIANT_ENABLED or next(AUTO_FAVORITE_VARIANTS) == nil) and VariantsGetter then
+        local vars = VariantsGetter()
+        if vars and #vars > 0 then
+             SetVariants(vars)
+             print("🩹 [AutoFav] Self-Healed Variants:", #vars)
+        end
+    end
+
     if not shouldFavorite and AUTO_FAVORITE_VARIANT_ENABLED then
         local variantId = metadata and metadata.VariantId
         if variantId and variantId ~= "None" and AUTO_FAVORITE_VARIANTS[variantId] then
@@ -122,10 +146,8 @@ local function OnFishObtained(itemId, metadata, extraData)
             pcall(function()
                 FavoriteEvent:FireServer(uuid)
             end)
-            print("⭐ Auto Favorited:", itemId, "UUID:", uuid)
+            print("⭐ Auto Favorited:", itemId)
         end)
-    else
-        print("⏭️ No match, skipping favorite")
     end
 end
 
@@ -134,21 +156,14 @@ end
 -- ===============================
 
 local function EnableAutoFavorite()
-    -- 🔥 FORCE DISCONNECT DULU SEBELUM CONNECT BARU
-    for _, conn in pairs(Connections) do
-        if typeof(conn) == "RBXScriptConnection" then
-            conn:Disconnect()
-        end
-    end
-    Connections = {}
-    
+    if IsActive then return end
     IsActive = true
     
     -- Connect listener
     local conn = NotificationEvent.OnClientEvent:Connect(OnFishObtained)
     table.insert(Connections, conn)
     
-    print("✅ Auto Favorite Module AKTIF! (Event Listener Connected)")
+    print("✅ Auto Favorite Module AKTIF!")
 end
 
 local function DisableAutoFavorite()
@@ -167,30 +182,7 @@ local function DisableAutoFavorite()
 end
 
 -- ===============================
--- FORCE RESTART HELPER
--- ===============================
-
-local function ForceRestart()
-    -- Cek apakah ada setting yang aktif
-    local hasActiveSettings = AUTO_FAVORITE_ENABLED or 
-                              AUTO_FAVORITE_VARIANT_ENABLED or 
-                              AUTO_FAVORITE_NAME_ENABLED
-    
-    if hasActiveSettings then
-        -- 🔥 FORCE RESTART MODULE
-        DisableAutoFavorite()
-        task.wait(0.1)
-        EnableAutoFavorite()
-        print("🔄 Module restarted dengan settings baru!")
-    else
-        -- Kalo gak ada settings, matiin aja
-        DisableAutoFavorite()
-        print("⚠️ Semua settings kosong, module dimatikan")
-    end
-end
-
--- ===============================
--- SETTER FUNCTIONS (UPDATED!)
+-- SETTER FUNCTIONS
 -- ===============================
 
 local function SetTiers(tierNames)
@@ -207,12 +199,7 @@ local function SetTiers(tierNames)
     
     if AUTO_FAVORITE_ENABLED then
         print("✅ Auto Favorite Tiers:", table.concat(tierNames, ", "))
-    else
-        print("⚠️ Tier settings cleared")
     end
-    
-    -- 🔥 FORCE RESTART!
-    ForceRestart()
 end
 
 local function SetVariants(variantNames)
@@ -226,12 +213,7 @@ local function SetVariants(variantNames)
     
     if AUTO_FAVORITE_VARIANT_ENABLED then
         print("✨ Auto Favorite Variants:", table.concat(variantNames, ", "))
-    else
-        print("⚠️ Variant settings cleared")
     end
-    
-    -- 🔥 FORCE RESTART!
-    ForceRestart()
 end
 
 local function SetFishNames(fishNames)
@@ -245,12 +227,14 @@ local function SetFishNames(fishNames)
     
     if AUTO_FAVORITE_NAME_ENABLED then
         print("🐟 Auto Favorite Names:", table.concat(fishNames, ", "))
-    else
-        print("⚠️ Fish name settings cleared")
     end
-    
-    -- 🔥 FORCE RESTART!
-    ForceRestart()
+end
+
+local function SetGetters(fishGetter, tierGetter, variantGetter)
+    FishNamesGetter = fishGetter
+    TiersGetter = tierGetter
+    VariantsGetter = variantGetter
+    print("🔗 AutoFav Getters Connected! (Self-Healing Active)")
 end
 
 -- ===============================
@@ -263,6 +247,7 @@ return {
     SetTiers = SetTiers,
     SetVariants = SetVariants,
     SetFishNames = SetFishNames,
+    SetGetters = SetGetters,
     GetFishNames = LoadFishNames,
     IsActive = function() return IsActive end
 }
