@@ -24,7 +24,7 @@ local Theme = {
     Good = Color3.fromRGB(0, 255, 128),
     Warn = Color3.fromRGB(255, 200, 0),
     Bad = Color3.fromRGB(255, 50, 80),
-    NotifColor = Color3.fromRGB(255, 140, 50),
+    NotifColor = Color3.fromRGB(150, 0, 255),
     CornerRadius = UDim.new(0, 8),
     Font = Enum.Font.GothamBold
 }
