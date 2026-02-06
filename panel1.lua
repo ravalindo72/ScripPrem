@@ -1,340 +1,435 @@
 -- =========================================================
--- VYPER PERFORMANCE MONITOR - PROFESSIONAL EDITION
+-- VYPER PERFORMANCE MONITOR + NOTIFICATION TRACKER
+-- VYPER PERFORMANCE MONITOR PRO + NOTIFICATION TRACKER
 -- =========================================================
 local RunService = game:GetService("RunService")
 local Stats = game:GetService("Stats")
-local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-local LocalPlayer = Players.LocalPlayer
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-local Camera = Workspace.CurrentCamera
-
-local Monitor = {}
-local guiInstance = nil
-local renderConnection = nil
+@@ -15,18 +15,27 @@ local renderConnection = nil
 local heartbeatConnection = nil
+local notifConnection = nil
 
--- =========================================================
--- THEME & RESPONSIVE SYSTEM
--- =========================================================
-
+-- Configuration & Theme
+-- Configuration & Design System
 local Theme = {
-    Colors = {
-        Background = Color3.fromRGB(10, 10, 15),
-        Stroke = Color3.fromRGB(170, 0, 255), -- Neon Purple
-        TextPrimary = Color3.fromRGB(240, 240, 255),
-        TextSecondary = Color3.fromRGB(180, 180, 200),
-        Accent = Color3.fromRGB(140, 80, 255),
-        
-        Good = Color3.fromRGB(0, 255, 128),  -- Green
-        Warn = Color3.fromRGB(255, 200, 0),  -- Yellow
-        Bad = Color3.fromRGB(255, 50, 80),   -- Red
-    },
-    Sizes = {
-        BaseHeight = 46,
-        BaseWidth = 320,
-        CornerRadius = 10,
-        FontSizeBig = 18,
-        FontSizeSmall = 10,
-        Padding = 12
-    }
+    BgColor = Color3.fromRGB(15, 15, 20),
+    StrokeColor = Color3.fromRGB(150, 0, 255),
+    TextColor = Color3.fromRGB(255, 255, 255),
+    SubTextColor = Color3.fromRGB(180, 180, 180),
+    Good = Color3.fromRGB(0, 255, 128),
+    Warn = Color3.fromRGB(255, 200, 0),
+    Bad = Color3.fromRGB(255, 50, 80),
+    NotifColor = Color3.fromRGB(150, 0, 255),
+    CornerRadius = UDim.new(0, 8),
+    Font = Enum.Font.GothamBold
+    Background = Color3.fromRGB(10, 10, 14), -- Deep modern dark
+    Accent = Color3.fromRGB(138, 43, 226),   -- Electric Purple
+    SecondaryAccent = Color3.fromRGB(0, 255, 200), -- Cyan for highlights
+    TextPrimary = Color3.fromRGB(255, 255, 255),
+    TextSecondary = Color3.fromRGB(160, 160, 170),
+    Good = Color3.fromRGB(46, 204, 113),
+    Warn = Color3.fromRGB(241, 196, 15),
+    Bad = Color3.fromRGB(231, 76, 60),
+    CornerRadius = UDim.new(0, 10),
+    FontMain = Enum.Font.GothamBold,
+    FontSub = Enum.Font.GothamMedium
 }
 
--- Responsive Helper
-local function GetResponsiveScale()
-    if not Camera then Camera = Workspace.CurrentCamera end
-    local viewport = Camera.ViewportSize
-    
-    -- Base scale on 1920x1080, but adapt significantly for mobile
-    if viewport.X < 800 then -- Mobile
-        return math.clamp(viewport.X / 500, 0.7, 1.1) 
-    elseif viewport.X < 1200 then -- Tablet
-        return 0.9
-    else -- Desktop
-        return 1.0
-    end
+-- Icons (Text-based for compatibility)
+local Icons = {
+    FPS = "⚡",
+    Ping = "📶",
+    CPU = "🖥️",
+    Notif = "🔔"
+}
+
+-- Helper: Get Notification Count
+@@ -57,122 +66,160 @@ local function getNotificationCount()
+    return count, activeCount
 end
 
--- =========================================================
--- UI CONSTRUCTION
--- =========================================================
-
+-- Helper: Create Rounded Shadow Frame
+-- Helper: Create UI
 local function CreatePanel()
     if guiInstance then return guiInstance end
-    
-    local scale = GetResponsiveScale()
-    
+
     local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "VyperStatsX_Pro"
+    ScreenGui.Name = "VyperStatsX"
+    ScreenGui.Name = "VyperStatsPro"
     ScreenGui.ResetOnSpawn = false
     ScreenGui.IgnoreGuiInset = true
-    ScreenGui.DisplayOrder = 100
     ScreenGui.Parent = PlayerGui
-    
-    -- Main Container
+
     local MainFrame = Instance.new("Frame")
     MainFrame.Name = "MainFrame"
-    MainFrame.Size = UDim2.new(0, Theme.Sizes.BaseWidth * scale, 0, Theme.Sizes.BaseHeight * scale)
-    MainFrame.Position = UDim2.new(0.5, -(Theme.Sizes.BaseWidth * scale)/2, 0.05, 0) -- Top Center
-    MainFrame.BackgroundColor3 = Theme.Colors.Background
-    MainFrame.BackgroundTransparency = 0.2
+    MainFrame.Size = UDim2.new(0, 360, 0, 45)  -- Increased width for notif display
+    MainFrame.Position = UDim2.new(0.5, -180, 0, 10)
+    MainFrame.BackgroundColor3 = Theme.BgColor
+    MainFrame.BackgroundTransparency = 0.15
+    MainFrame.Size = UDim2.new(0, 420, 0, 55) -- Slightly larger for "Professional" feel
+    MainFrame.Position = UDim2.new(0.5, -210, 0, 15)
+    MainFrame.BackgroundColor3 = Theme.Background
+    MainFrame.BackgroundTransparency = 0.1
     MainFrame.BorderSizePixel = 0
+    MainFrame.ClipsDescendants = true
     MainFrame.Parent = ScreenGui
-    
-    -- Aesthetic: Gradient
+
+    -- Aesthetic: Glassy Gradient
     local Gradient = Instance.new("UIGradient")
     Gradient.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, Theme.Colors.Background),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 15, 30))
+        ColorSequenceKeypoint.new(0, Theme.BgColor),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(25, 25, 35))
+        ColorSequenceKeypoint.new(0, Theme.Background),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 20, 28))
     }
+    Gradient.Rotation = 90
     Gradient.Rotation = 45
     Gradient.Parent = MainFrame
-    
-    -- Aesthetic: Corner
+
+    -- Aesthetic: Rounded Corners
     local Corner = Instance.new("UICorner")
-    Corner.CornerRadius = UDim.new(0, Theme.Sizes.CornerRadius * scale)
+    Corner.CornerRadius = Theme.CornerRadius
     Corner.Parent = MainFrame
-    
-    -- Aesthetic: Stroke (Neon Glow Effect)
+
+    -- Aesthetic: Glowing Border
     local Stroke = Instance.new("UIStroke")
     Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    Stroke.Color = Theme.Colors.Stroke
+    Stroke.Color = Theme.StrokeColor
+    Stroke.Thickness = 1.2
+    Stroke.Transparency = 0.3
+    Stroke.Color = Theme.Accent
     Stroke.Thickness = 1.5
     Stroke.Transparency = 0.4
     Stroke.Parent = MainFrame
+
+    
+    -- Aesthetic: Soft Shadow
+    local Shadow = Instance.new("ImageLabel")
+    Shadow.Name = "Shadow"
+    Shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+    Shadow.Position = UDim2.new(0.5, 0, 0.5, 0)
+    Shadow.Size = UDim2.new(1, 40, 1, 40)
+    Shadow.BackgroundTransparency = 1
+    Shadow.Image = "rbxassetid://6015897843" -- Soft shadow asset
+    Shadow.ImageColor3 = Color3.new(0,0,0)
+    Shadow.ImageTransparency = 0.4
+    Shadow.ZIndex = 0
+    Shadow.Parent = MainFrame
     
     -- Layout
     local Layout = Instance.new("UIListLayout")
     Layout.Parent = MainFrame
     Layout.FillDirection = Enum.FillDirection.Horizontal
-    Layout.HorizontalAlignment = Enum.HorizontalAlignment.SpaceEvenly
+    Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     Layout.VerticalAlignment = Enum.VerticalAlignment.Center
-    Layout.SortOrder = Enum.SortOrder.LayoutOrder
-    Layout.Padding = UDim.new(0, 5 * scale)
-    
-    -- Helper: Create Stat Item
-    local function MakeStat(id, label, icon)
-        local Item = Instance.new("Frame")
-        Item.Name = id
-        Item.BackgroundTransparency = 1
-        Item.Size = UDim2.new(0.3, 0, 1, 0) -- Divide into 3 distinct sections
-        Item.Parent = MainFrame
-        
+    Layout.Padding = UDim.new(0, 12)
+    Layout.Padding = UDim.new(0, 15) -- Spacious padding
+
+    local function MakeSep()
+        local S = Instance.new("Frame")
+        S.Size = UDim2.new(0, 1, 0, 18)
+        S.BackgroundColor3 = Color3.fromRGB(255,255,255)
+        S.BackgroundTransparency = 0.8
+        S.BorderSizePixel = 0
+        S.Parent = MainFrame
+    end
+
+    local function MakeStatInfo(name, labelText)
+    -- Helper to create stat modules
+    local function CreateStatModule(id, icon, labelText)
+        local Container = Instance.new("Frame")
+        Container.Name = name
+        Container.Name = id
+        Container.Size = UDim2.new(0, 90, 0, 40)
+        Container.BackgroundTransparency = 1
+        Container.Size = UDim2.new(0, 75, 1, 0)
+        Container.Parent = MainFrame
+
         local Val = Instance.new("TextLabel")
         Val.Name = "Value"
-        Val.Parent = Item
+        Val.Parent = Container
         Val.BackgroundTransparency = 1
-        Val.Size = UDim2.new(1, 0, 0.6, 0)
-        Val.Position = UDim2.new(0, 0, 0.15, 0)
-        Val.Font = Enum.Font.GothamBold
+        Val.Size = UDim2.new(1, 0, 0, 20)
+        Val.Position = UDim2.new(0, 0, 0.5, -10)
+        Val.Font = Theme.Font
         Val.Text = "--"
-        Val.TextColor3 = Theme.Colors.TextPrimary
-        Val.TextSize = Theme.Sizes.FontSizeBig * scale
-        Val.RichText = true
+        Val.TextColor3 = Theme.TextColor
+        Val.TextSize = 16
         Val.TextXAlignment = Enum.TextXAlignment.Center
+        Val.RichText = true
+        local ContentLayout = Instance.new("UIListLayout")
+        ContentLayout.Parent = Container
+        ContentLayout.FillDirection = Enum.FillDirection.Vertical
+        ContentLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        ContentLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+        ContentLayout.Padding = UDim.new(0, 2)
         
-        local Title = Instance.new("TextLabel")
-        Title.Name = "Label"
-        Title.Parent = Item
-        Title.BackgroundTransparency = 1
-        Title.Size = UDim2.new(1, 0, 0.3, 0)
-        Title.Position = UDim2.new(0, 0, 0.7, 0)
-        Title.Font = Enum.Font.GothamMedium
-        Title.Text = label
-        Title.TextColor3 = Theme.Colors.TextSecondary
-        Title.TextSize = Theme.Sizes.FontSizeSmall * scale
-        Title.TextTransparency = 0.4
-        Title.TextXAlignment = Enum.TextXAlignment.Center
-        
+        local Value = Instance.new("TextLabel")
+        Value.Name = "Value"
+        Value.Parent = Container
+        Value.BackgroundTransparency = 1
+        Value.Size = UDim2.new(1, 0, 0, 22)
+        Value.Font = Theme.FontMain
+        Value.Text = "--"
+        Value.TextColor3 = Theme.TextPrimary
+        Value.TextSize = 18
+        Value.RichText = true
+
+        local Lab = Instance.new("TextLabel")
+        Lab.Name = "Label"
+        Lab.Parent = Container
+        Lab.BackgroundTransparency = 1
+        Lab.Size = UDim2.new(1, 0, 0, 12)
+        Lab.Position = UDim2.new(0, 0, 1, -14)
+        Lab.Font = Enum.Font.GothamMedium
+        Lab.Text = labelText
+        Lab.TextColor3 = Theme.SubTextColor
+        Lab.TextSize = 9
+        Lab.TextXAlignment = Enum.TextXAlignment.Center
+        local Label = Instance.new("TextLabel")
+        Label.Name = "Label"
+        Label.Parent = Container
+        Label.BackgroundTransparency = 1
+        Label.Size = UDim2.new(1, 0, 0, 14)
+        Label.Font = Theme.FontSub
+        Label.Text = icon .. " " .. labelText
+        Label.TextColor3 = Theme.TextSecondary
+        Label.TextSize = 11
+        Label.RichText = true
+
         return Val
+        return Value
     end
-    
-    -- Vertical Separator
-    local function MakeSep()
-        local Sep = Instance.new("Frame")
-        Sep.Size = UDim2.new(0, 1, 0.5, 0)
-        Sep.BackgroundColor3 = Theme.Colors.TextSecondary
-        Sep.BackgroundTransparency = 0.8
-        Sep.BorderSizePixel = 0
-        Sep.Parent = MainFrame
+
+    local FPSVal = MakeStatInfo("FPS", "FPS")
+    MakeSep()
+    local PingVal = MakeStatInfo("Ping", "PING ms")
+    MakeSep()
+    local CPUVal = MakeStatInfo("CPU", "CPU %")
+    MakeSep()
+    local NotifVal = MakeStatInfo("Notif", "NOTIFS")
+    local Separator = function()
+        local S = Instance.new("Frame")
+        S.Size = UDim2.new(0, 1, 0, 25)
+        S.BackgroundColor3 = Theme.TextSecondary
+        S.BackgroundTransparency = 0.8
+        S.Parent = MainFrame
+        return S
     end
-    
-    local FPSVal = MakeStat("FPS", "FPS")
-    MakeSep()
-    local PingVal = MakeStat("Ping", "LATENCY")
-    MakeSep()
-    local CPUVal = MakeStat("CPU", "CPU LOAD")
+
+    local FPSVal = CreateStatModule("FPS", Icons.FPS, "FPS")
+    Separator()
+    local PingVal = CreateStatModule("Ping", Icons.Ping, "PING")
+    Separator()
+    local CPUVal = CreateStatModule("CPU", Icons.CPU, "CPU")
+    Separator()
+    local NotifVal = CreateStatModule("Notif", Icons.Notif, "ALERTS")
     
     -- =========================================================
-    -- DRAGGABLE LOGIC V2 (Smoother)
+    -- INTERACTIVITY (Responsive Feel)
     -- =========================================================
-    local dragging = false
-    local dragInput, dragStart, startPos
+    
+    -- 1. Hover Glow Effect
+    MainFrame.MouseEnter:Connect(function()
+        TweenService:Create(Stroke, TweenInfo.new(0.3), {Transparency = 0, Color = Theme.SecondaryAccent}):Play()
+        TweenService:Create(MainFrame, TweenInfo.new(0.3), {BackgroundTransparency = 0.05}):Play()
+    end)
+    
+    MainFrame.MouseLeave:Connect(function()
+        TweenService:Create(Stroke, TweenInfo.new(0.3), {Transparency = 0.4, Color = Theme.Accent}):Play()
+        TweenService:Create(MainFrame, TweenInfo.new(0.3), {BackgroundTransparency = 0.1}):Play()
+    end)
+
+    -- DRAGGABLE LOGIC
+    -- 2. Draggable Logic
+    local dragging, dragInput, dragStart, startPos
     
     MainFrame.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
             startPos = MainFrame.Position
-            
-            -- Active Animation
-            TweenService:Create(MainFrame, TweenInfo.new(0.2), {BackgroundTransparency = 0.1}):Play()
-            TweenService:Create(Stroke, TweenInfo.new(0.2), {Transparency = 0, Thickness = 2}):Play()
+
+            TweenService:Create(Stroke, TweenInfo.new(0.2), {Transparency = 0, Color = Theme.StrokeColor}):Play()
+            TweenService:Create(MainFrame, TweenInfo.new(0.2), {BackgroundTransparency = 0.05}):Play()
+            -- Pick up effect
+            TweenService:Create(MainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 430, 0, 60)}):Play()
         end
     end)
-    
+
     MainFrame.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = false
-            -- Reset Animation
-            TweenService:Create(MainFrame, TweenInfo.new(0.3), {BackgroundTransparency = 0.2}):Play()
-            TweenService:Create(Stroke, TweenInfo.new(0.3), {Transparency = 0.4, Thickness = 1.5}):Play()
+            TweenService:Create(Stroke, TweenInfo.new(0.3), {Transparency = 0.3}):Play()
+            TweenService:Create(MainFrame, TweenInfo.new(0.3), {BackgroundTransparency = 0.15}):Play()
+            -- Drop effect
+            TweenService:Create(MainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(0, 420, 0, 55)}):Play()
         end
     end)
-    
-    UserInputService.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end)
-    
+
+@@ -185,6 +232,7 @@ local function CreatePanel()
     UserInputService.InputChanged:Connect(function(input)
         if input == dragInput and dragging then
             local delta = input.Position - dragStart
-            
-            -- Responsive clamping
-            local viewport = Camera.ViewportSize
-            local guiSize = MainFrame.AbsoluteSize
-            
-            local newX = startPos.X.Offset + delta.X
-            local newY = startPos.Y.Offset + delta.Y
-            
-            -- We just handle ScreenGui.IgnoreGuiInset by clamping safely
-            MainFrame.Position = UDim2.new(
-                startPos.X.Scale, 
-                math.clamp(newX, -viewport.X/2 + guiSize.X/2, viewport.X/2 - guiSize.X/2), -- Simple clamping can be tricky with anchors. 
-                -- Simplified Draggable:
-                startPos.Y.Scale, 
-                newY
-            )
-            -- A cleaner absolute position approach:
-            MainFrame.Position = UDim2.new(
-                startPos.X.Scale, startPos.X.Offset + delta.X,
-                startPos.Y.Scale, startPos.Y.Offset + delta.Y
-            )
+            -- Smooth drag with Lerp (simulated via rapid direct updates, but Back stylistic easing on pick up makes it feel smooth)
+            MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
         end
     end)
-    
-    return {
-        Gui = ScreenGui,
-        FPS = FPSVal,
-        Ping = PingVal,
-        CPU = CPUVal
-    }
-end
-
-local function CleanupExisting()
-    if renderConnection then renderConnection:Disconnect() renderConnection = nil end
-    if heartbeatConnection then heartbeatConnection:Disconnect() heartbeatConnection = nil end
-    
-    if guiInstance and guiInstance.Gui then 
-        guiInstance.Gui:Destroy() 
+@@ -210,15 +258,20 @@ local function CleanupExisting()
     end
     guiInstance = nil
-    
-    -- Cleanup potential leftovers
+
+    -- Deep cleanup
     if PlayerGui then
         for _, c in ipairs(PlayerGui:GetChildren()) do
-            if c.Name == "VyperStatsX_Pro" or c.Name == "VyperStatsX" then
+            if c.Name == "VyperStatsX" then
+            if c.Name == "VyperStatsPro" or c.Name == "VyperStatsX" then
                 c:Destroy()
             end
         end
     end
 end
 
+-- =========================================================
+-- LOGIC
+-- =========================================================
+
 function Monitor:Start()
     CleanupExisting()
-    
-    local ui = CreatePanel()
-    if not ui then return end
-    
-    -- =========================================================
-    -- STATS UPDATER (Optimized)
-    -- =========================================================
+
+@@ -229,11 +282,13 @@ function Monitor:Start()
     local fpsAccumulator = 0
-    local fpsCount = 0
-    local fpsTimer = 0
-    
+    local lastNotifCount = 0
+
+    -- FPS Loop (Responsive Update)
     renderConnection = RunService.RenderStepped:Connect(function(dt)
         fpsAccumulator = fpsAccumulator + dt
-        fpsCount = fpsCount + 1
-        
         if fpsAccumulator >= 0.5 then
-            local fps = math.floor(fpsCount / fpsAccumulator)
-            local fpsColor = (fps >= 50 and Theme.Colors.Good) or (fps >= 30 and Theme.Colors.Warn) or Theme.Colors.Bad
+        if fpsAccumulator >= 0.25 then -- Faster update rate (0.25s) for responsiveness
+            local fps = math.floor(1 / dt)
+            local fpsColor = (fps >= 50 and Theme.Good) or (fps >= 30 and Theme.Warn) or Theme.Bad
+            local fpsColor = (fps >= 55 and Theme.Good) or (fps >= 30 and Theme.Warn) or Theme.Bad
             
-            if ui.FPS then
+            if ui.FPS then 
                 ui.FPS.Text = tostring(fps)
                 ui.FPS.TextColor3 = fpsColor
-            end
-            
-            fpsAccumulator = 0
-            fpsCount = 0
+@@ -242,6 +297,7 @@ function Monitor:Start()
         end
     end)
-    
-    local cpuSmooth = 0
+
+    -- Stats Loop (CPU, Ping, Notifs)
     local lastUpdate = tick()
-    
-    heartbeatConnection = RunService.Heartbeat:Connect(function(dt)
-        if not ui.Gui or not ui.Gui.Parent then 
-            CleanupExisting() 
+    local cpuSmooth = 0
+
+@@ -250,46 +306,44 @@ function Monitor:Start()
+            CleanupExisting()
             return 
         end
+
+        local rawLoad = math.clamp((dt / 0.01667) * 35, 0, 100) 
+        cpuSmooth = (cpuSmooth * 0.9) + (rawLoad * 0.1)
         
-        -- Smooth CPU approximation
-        local rawLoad = math.clamp((dt * 60 - 1) * 100, 0, 100) -- Rough load estimate based on frame lag
-        -- Better method: 
-        local s = Stats:GetValue()
-        -- Roblox doesn't give direct total CPU, so we use frame time heuristics or script performance if available
-        -- We'll stick to the simpler frame-time load used in V1 but smoothed
-        local frameTimeLoad = math.clamp((dt / 0.01667) * 40, 0, 100)
-        cpuSmooth = (cpuSmooth * 0.9) + (frameTimeLoad * 0.1)
-        
+        local rawLoad = math.clamp((dt / 0.01667) * 35, 0, 100)
+        cpuSmooth = (cpuSmooth * 0.9) + (rawLoad * 0.1) -- Smoother lerp
+
         local now = tick()
+        if now - lastUpdate >= 0.35 then
         if now - lastUpdate >= 0.5 then
-             -- Update CPU
+            -- CPU
             local displayLoad = math.floor(cpuSmooth)
-            local cpuColor = (displayLoad < 60 and Theme.Colors.Good) or (displayLoad < 85 and Theme.Colors.Warn) or Theme.Colors.Bad
+            local cpuColor = (displayLoad < 50 and Theme.Good) or (displayLoad < 80 and Theme.Warn) or Theme.Bad
             
             if ui.CPU then
                 ui.CPU.Text = tostring(displayLoad) .. "<font size='10'>%</font>"
+                ui.CPU.Text = tostring(displayLoad) .. "<font size='12'>%</font>"
                 ui.CPU.TextColor3 = cpuColor
             end
-            
-            -- Update Ping
+
+            -- Ping
             local ping = 0
             pcall(function() ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) end)
-            if ping <= 0 then 
-                ping = math.floor(LocalPlayer:GetNetworkPing() * 1000) 
-            end
+            if ping <= 0 then ping = math.floor(LocalPlayer:GetNetworkPing() * 1000) end
             
-            local pingColor = (ping < 100 and Theme.Colors.Good) or (ping < 250 and Theme.Colors.Warn) or Theme.Colors.Bad
-            
+            local pingColor = (ping < 100 and Theme.Good) or (ping < 200 and Theme.Warn) or Theme.Bad
             if ui.Ping then
-                ui.Ping.Text = tostring(ping) .. "<font size='10'>ms</font>"
+                ui.Ping.Text = tostring(ping)
+                ui.Ping.Text = tostring(ping) .. "<font size='12'>ms</font>"
                 ui.Ping.TextColor3 = pingColor
             end
-            
-            lastUpdate = now
+
+            -- UPDATE NOTIFICATION COUNT
+            -- Notifications
+            local totalNotifs, activeNotifs = getNotificationCount()
+            if ui.Notif then
+                ui.Notif.Text = tostring(totalNotifs) .. "<font size='10'>/" .. tostring(activeNotifs) .. "</font>"
+                ui.Notif.TextColor3 = Theme.NotifColor
+                ui.Notif.Text = tostring(totalNotifs) .. "<font size='12' color='#AAAAAA'> / " .. tostring(activeNotifs) .. "</font>"
+                ui.Notif.TextColor3 = (activeNotifs > 0 and Theme.Accent) or Theme.TextPrimary
+
+                -- Flash effect on new notification
+                -- Check for new notifs
+                if totalNotifs > lastNotifCount then
+                    TweenService:Create(ui.Frame, TweenInfo.new(0.15), {BackgroundTransparency = 0.05}):Play()
+                    TweenService:Create(ui.Stroke, TweenInfo.new(0.15), {Transparency = 0, Color = Theme.NotifColor}):Play()
+                    
+                    task.delay(0.15, function()
+                        TweenService:Create(ui.Frame, TweenInfo.new(0.3), {BackgroundTransparency = 0.15}):Play()
+                        TweenService:Create(ui.Stroke, TweenInfo.new(0.3), {Transparency = 0.3, Color = Theme.StrokeColor}):Play()
+                    -- Pulse Effect
+                    local pulse = TweenService:Create(ui.Stroke, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Color = Theme.SecondaryAccent, Thickness = 2.5})
+                    pulse:Play()
+                    pulse.Completed:Connect(function()
+                        TweenService:Create(ui.Stroke, TweenInfo.new(0.5), {Color = Theme.Accent, Thickness = 1.5}):Play()
+                    end)
+                    
+                    lastNotifCount = totalNotifs
+                end
+            end
+@@ -298,34 +352,31 @@ function Monitor:Start()
         end
     end)
+
+    -- Monitor for new notifications using ChildAdded
+    -- Instant Notification Watcher
+    pcall(function()
+        local playerGui = LocalPlayer.PlayerGui
+        if playerGui then
+            local textNotifications = playerGui:WaitForChild("Text Notifications", 5)
+            if textNotifications then
+                local frame = textNotifications:WaitForChild("Frame", 5)
+                if frame then
+                    notifConnection = frame.ChildAdded:Connect(function(child)
+                        if child.Name == "Tile" and ui.Notif then
+                            -- Instant flash on new notification detected
+                            TweenService:Create(ui.Stroke, TweenInfo.new(0.1), {Transparency = 0, Color = Theme.NotifColor, Thickness = 2}):Play()
+                            task.delay(0.2, function()
+                                TweenService:Create(ui.Stroke, TweenInfo.new(0.3), {Transparency = 0.3, Color = Theme.StrokeColor, Thickness = 1.2}):Play()
+                            end)
+        local textNotifications = playerGui:WaitForChild("Text Notifications", 3)
+        if textNotifications then
+            local frame = textNotifications:WaitForChild("Frame", 3)
+            if frame then
+                notifConnection = frame.ChildAdded:Connect(function(child)
+                    if child.Name == "Tile" then
+                        -- Immediate Visual Feedback
+                        if ui.Stroke then
+                            TweenService:Create(ui.Stroke, TweenInfo.new(0.1), {Color = Theme.SecondaryAccent, Transparency = 0}):Play()
+                        end
+                    end)
+                end
+                    end
+                end)
+            end
+        end
+    end)
+
+    print("✅ Vyper Monitor + Notification Tracker Started!")
+    print("✨ Vyper Pro Panel: Started")
 end
 
 function Monitor:Stop()
     CleanupExisting()
+    print("🛑 Performance Monitor Stopped")
+    print("� Vyper Pro Panel: Stopped")
 end
 
 return Monitor
