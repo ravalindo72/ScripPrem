@@ -109,7 +109,7 @@ local function CreatePanel()
     local Layout = Instance.new("UIListLayout")
     Layout.Parent = MainFrame
     Layout.FillDirection = Enum.FillDirection.Horizontal
-    Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    Layout.HorizontalAlignment = Enum.HorizontalAlignment.SpaceEvenly
     Layout.VerticalAlignment = Enum.VerticalAlignment.Center
     Layout.SortOrder = Enum.SortOrder.LayoutOrder
     Layout.Padding = UDim.new(0, 5 * scale)
